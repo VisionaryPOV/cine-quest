@@ -1,0 +1,61 @@
+// Cine Quest — Waveform (luma) accumulation compute shader.
+// Samples a downsampled video RT and atomic-adds into a width×bins buffer for density display.
+
+#pragma kernel Clear
+#pragma kernel Accumulate
+#pragma kernel Resolve
+
+Texture2D<float4> _Source;
+RWStructuredBuffer<uint> _Bins;      // size = columns * binCount
+RWTexture2D<float4> _OutTex;
+
+uint _Columns;
+uint _BinCount;
+uint _SrcWidth;
+uint _SrcHeight;
+float _MaxCount; // for resolve normalize (set from CPU or use local max approx)
+float _Decay;    // 0 = hard clear path; used if not clearing fully
+
+[numthreads(64, 1, 1)]
+void Clear(uint3 id : SV_DispatchThreadID)
+{
+    uint n = _Columns * _BinCount;
+    if (id.x >= n) return;
+    _Bins[id.x] = 0;
+}
+
+[numthreads(8, 8, 1)]
+void Accumulate(uint3 id : SV_DispatchThreadID)
+{
+    if (id.x >= _SrcWidth || id.y >= _SrcHeight) return;
+
+    float4 c = _Source.Load(int3(id.xy, 0));
+
+    // Rec.709 luma
+    float y = dot(c.rgb, float3(0.2126, 0.7152, 0.0722));
+    y = saturate(y);
+
+    float u = (id.x + 0.5) / (float)_SrcWidth;
+    uint col = (uint)floor(u * _Columns);
+    if (col >= _Columns) col = _Columns - 1;
+    uint bin = (uint)floor(y * (_BinCount - 1));
+    uint idx = col * _BinCount + bin;
+    InterlockedAdd(_Bins[idx], 1);
+}
+
+[numthreads(8, 8, 1)]
+void Resolve(uint3 id : SV_DispatchThreadID)
+{
+    if (id.x >= _Columns || id.y >= _BinCount) return;
+
+    uint idx = id.x * _BinCount + id.y;
+    uint count = _Bins[idx];
+    float n = _MaxCount > 1e-3 ? (float)count / _MaxCount : (float)count;
+    // Soft density curve
+    float d = saturate(log2(1.0 + n * 8.0) / log2(9.0));
+
+    // Classic green phosphor look
+    float3 col = float3(0.1, 1.0, 0.25) * d;
+    // IRE axis is vertical: y=0 bottom → store with y flipped in viz or here
+    _OutTex[int2(id.x, id.y)] = float4(col, d > 0.001 ? 1 : 0);
+}

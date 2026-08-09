@@ -1,0 +1,62 @@
+// Cine Quest — Vectorscope (Cb/Cr polar-style 2D accumulation) with Rec.709 chroma.
+
+#pragma kernel Clear
+#pragma kernel Accumulate
+#pragma kernel Resolve
+
+Texture2D<float4> _Source;
+RWStructuredBuffer<uint> _Bins; // size x size
+RWTexture2D<float4> _OutTex;
+
+uint _Size; // e.g. 256
+uint _SrcWidth;
+uint _SrcHeight;
+float _MaxCount;
+
+// Rec.709 RGB → YCbCr (full-range style coefficients for scope)
+float3 RgbToYCbCr(float3 rgb)
+{
+    float y  =  0.2126 * rgb.r + 0.7152 * rgb.g + 0.0722 * rgb.b;
+    float cb = -0.1146 * rgb.r - 0.3854 * rgb.g + 0.5    * rgb.b;
+    float cr =  0.5    * rgb.r - 0.4542 * rgb.g - 0.0458 * rgb.b;
+    return float3(y, cb, cr);
+}
+
+[numthreads(64, 1, 1)]
+void Clear(uint3 id : SV_DispatchThreadID)
+{
+    uint n = _Size * _Size;
+    if (id.x >= n) return;
+    _Bins[id.x] = 0;
+}
+
+[numthreads(8, 8, 1)]
+void Accumulate(uint3 id : SV_DispatchThreadID)
+{
+    if (id.x >= _SrcWidth || id.y >= _SrcHeight) return;
+
+    float4 c = _Source.Load(int3(id.xy, 0));
+    float3 ycc = RgbToYCbCr(saturate(c.rgb));
+
+    // Map Cb/Cr from [-0.5,0.5] → [0, size)
+    float cb = ycc.y;
+    float cr = ycc.z;
+    uint x = (uint)floor(saturate(cb + 0.5) * (_Size - 1));
+    uint y = (uint)floor(saturate(cr + 0.5) * (_Size - 1));
+    InterlockedAdd(_Bins[y * _Size + x], 1);
+}
+
+[numthreads(8, 8, 1)]
+void Resolve(uint3 id : SV_DispatchThreadID)
+{
+    if (id.x >= _Size || id.y >= _Size) return;
+    uint count = _Bins[id.y * _Size + id.x];
+    float n = _MaxCount > 1e-3 ? (float)count / _MaxCount : (float)count;
+    float d = saturate(log2(1.0 + n * 16.0) / log2(17.0));
+
+    // Colorize by position (approx hue)
+    float2 pc = (float2(id.xy) / _Size) * 2.0 - 1.0;
+    float3 hue = saturate(float3(pc.y * 0.5 + 0.5, 1.0 - length(pc), -pc.x * 0.5 + 0.5));
+    float3 col = lerp(float3(0.05, 0.05, 0.08), hue, d);
+    _OutTex[int2(id.x, id.y)] = float4(col, 1);
+}

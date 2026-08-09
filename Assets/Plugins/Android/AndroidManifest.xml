@@ -1,0 +1,76 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Cine Quest — Android manifest template for Meta Quest 3 / 3S.
+  Merged with Unity-generated and Meta XR manifests at build time.
+  useCustomMainManifest is enabled in Player Settings.
+-->
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools"
+    package="com.cinequest.monitor"
+    android:installLocation="auto">
+
+    <!-- USB Video Class capture (external capture cards) -->
+    <uses-permission android:name="android.permission.CAMERA" />
+    <uses-permission android:name="android.permission.RECORD_AUDIO" />
+    <uses-permission android:name="android.permission.MODIFY_AUDIO_SETTINGS" />
+
+    <!-- USB host for UVC / UAC capture cards -->
+    <uses-feature android:name="android.hardware.usb.host" android:required="true" />
+    <uses-feature android:name="android.hardware.camera" android:required="false" />
+    <uses-feature android:name="android.hardware.microphone" android:required="false" />
+
+    <!-- Meta Quest / Horizon OS -->
+    <uses-feature android:name="android.hardware.vr.headtracking" android:required="true" android:version="1" />
+    <uses-feature android:name="oculus.software.handtracking" android:required="false" />
+    <uses-permission android:name="com.oculus.permission.HAND_TRACKING" />
+    <uses-permission android:name="horizonos.permission.HEADSET_CAMERA" tools:ignore="ProtectedPermissions" />
+
+    <!-- Optional: passthrough / scene (Meta XR may inject additional permissions) -->
+    <uses-permission android:name="com.oculus.permission.USE_ANCHOR_API" />
+
+    <application
+        android:allowBackup="false"
+        android:label="@string/app_name"
+        android:theme="@android:style/Theme.Black.NoTitleBar.Fullscreen"
+        android:extractNativeLibs="true"
+        tools:replace="android:allowBackup">
+
+        <!-- Meta Quest category: allows App Lab / Horizon Store packaging -->
+        <meta-data android:name="com.oculus.supportedDevices" android:value="quest3|quest3s" />
+        <meta-data android:name="com.oculus.handtracking.frequency" android:value="HIGH" />
+        <meta-data android:name="com.oculus.handtracking.version" android:value="V2.0" />
+
+        <!-- Disable system VR compositor auto image enhancements where possible.
+             True fidelity still requires user to disable adaptive brightness / CABC
+             in headset system settings — see Docs/SIGNAL_FIDELITY.md -->
+        <meta-data android:name="com.oculus.ossplash.background" android:value="black" />
+
+        <activity
+            android:name="com.unity3d.player.UnityPlayerActivity"
+            android:exported="true"
+            android:launchMode="singleTask"
+            android:configChanges="mcc|mnc|locale|touchscreen|keyboard|keyboardHidden|navigation|orientation|screenLayout|uiMode|screenSize|smallestScreenSize|fontScale|layoutDirection|density"
+            android:screenOrientation="landscape"
+            android:resizeableActivity="false"
+            android:hardwareAccelerated="true">
+
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+                <category android:name="com.oculus.intent.category.VR" />
+            </intent-filter>
+
+            <!-- Auto-launch / attach when a UVC capture card is connected -->
+            <intent-filter>
+                <action android:name="android.hardware.usb.action.USB_DEVICE_ATTACHED" />
+            </intent-filter>
+
+            <meta-data
+                android:name="android.hardware.usb.action.USB_DEVICE_ATTACHED"
+                android:resource="@xml/usb_device_filter" />
+
+            <meta-data android:name="unityplayer.UnityActivity" android:value="true" />
+            <meta-data android:name="com.oculus.vr.focusaware" android:value="true" />
+        </activity>
+    </application>
+</manifest>

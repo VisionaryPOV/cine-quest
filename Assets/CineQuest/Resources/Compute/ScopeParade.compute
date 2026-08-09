@@ -1,0 +1,66 @@
+// Cine Quest — RGB Parade: three side-by-side waveforms for R, G, B.
+
+#pragma kernel Clear
+#pragma kernel Accumulate
+#pragma kernel Resolve
+
+Texture2D<float4> _Source;
+RWStructuredBuffer<uint> _Bins; // columns * binCount * 3 channels
+RWTexture2D<float4> _OutTex;
+
+uint _Columns;   // columns per channel
+uint _BinCount;
+uint _SrcWidth;
+uint _SrcHeight;
+float _MaxCount;
+
+[numthreads(64, 1, 1)]
+void Clear(uint3 id : SV_DispatchThreadID)
+{
+    uint n = _Columns * _BinCount * 3;
+    if (id.x >= n) return;
+    _Bins[id.x] = 0;
+}
+
+[numthreads(8, 8, 1)]
+void Accumulate(uint3 id : SV_DispatchThreadID)
+{
+    if (id.x >= _SrcWidth || id.y >= _SrcHeight) return;
+
+    float4 c = _Source.Load(int3(id.xy, 0));
+    float3 rgb = saturate(c.rgb);
+
+    float u = (id.x + 0.5) / (float)_SrcWidth;
+    uint col = (uint)floor(u * _Columns);
+    if (col >= _Columns) col = _Columns - 1;
+
+    uint bR = (uint)floor(rgb.r * (_BinCount - 1));
+    uint bG = (uint)floor(rgb.g * (_BinCount - 1));
+    uint bB = (uint)floor(rgb.b * (_BinCount - 1));
+
+    // Layout: channel * (columns*bins) + col*bins + bin
+    uint stride = _Columns * _BinCount;
+    InterlockedAdd(_Bins[0 * stride + col * _BinCount + bR], 1);
+    InterlockedAdd(_Bins[1 * stride + col * _BinCount + bG], 1);
+    InterlockedAdd(_Bins[2 * stride + col * _BinCount + bB], 1);
+}
+
+[numthreads(8, 8, 1)]
+void Resolve(uint3 id : SV_DispatchThreadID)
+{
+    // Out texture is (columns*3) x binCount
+    uint outW = _Columns * 3;
+    if (id.x >= outW || id.y >= _BinCount) return;
+
+    uint ch = id.x / _Columns;
+    uint col = id.x % _Columns;
+    uint stride = _Columns * _BinCount;
+    uint count = _Bins[ch * stride + col * _BinCount + id.y];
+    float n = _MaxCount > 1e-3 ? (float)count / _MaxCount : (float)count;
+    float d = saturate(log2(1.0 + n * 8.0) / log2(9.0));
+
+    float3 tint = ch == 0 ? float3(1, 0.15, 0.1) :
+                  ch == 1 ? float3(0.15, 1, 0.15) :
+                            float3(0.2, 0.4, 1);
+    _OutTex[int2(id.x, id.y)] = float4(tint * d, d > 0.001 ? 1 : 0);
+}
