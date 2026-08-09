@@ -17,7 +17,9 @@ Recordings/
 .gradle/
 ExportedObj/
 .consulo/
+# Unity auto-generated solution/project files (keep Tools/PureTests csproj)
 *.csproj
+!Tools/PureTests/*.csproj
 *.unityproj
 *.sln
 *.suo
