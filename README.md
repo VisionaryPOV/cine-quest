@@ -54,10 +54,11 @@ Package pins live in `Packages/manifest.json`. Meta scoped registry is pre-decla
 
 ---
 
-## Monday first Quest test
+## Monday first Quest test / DP demo
 
-Single-session on-device plan: **[Docs/MONDAY_FIRST_TEST.md](Docs/MONDAY_FIRST_TEST.md)**  
-(sideload → live UVC → Bypass/iris fidelity → scopes → layout save/load)
+- **[Docs/MONDAY_FIRST_TEST.md](Docs/MONDAY_FIRST_TEST.md)** — sideload → live UVC → Bypass/iris  
+- **[Docs/DEMO_TOMORROW.md](Docs/DEMO_TOMORROW.md)** — timed demo/debug agenda  
+- **[Docs/DP_EXISTING_HDMI_GEAR.md](Docs/DP_EXISTING_HDMI_GEAR.md)** — **no new hardware**: reuse the DP’s HDMI Link capture card
 
 ## Pure logic tests (no headset / no Unity Editor)
 

@@ -148,7 +148,7 @@ namespace CineQuest.Capture
                 if (_startRequested && _frame == null && Time.unscaledTime - _startTime > 3f)
                 {
                     SetError(CaptureErrorCode.NoDevice,
-                        "UVC open requested but no texture after 3s. Check USB permission, card, and UVCManager wiring / InjectFrame.");
+                        "No UVC frames after 3s. Close Meta HDMI Link, allow USB for Cine Quest (same capture card), check UVCManager / InjectFrame.");
                     _startRequested = false;
                     return;
                 }

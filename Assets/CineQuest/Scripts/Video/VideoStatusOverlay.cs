@@ -40,7 +40,7 @@ namespace CineQuest.Video
                 switch (st.Error)
                 {
                     case CaptureErrorCode.NoDevice:
-                        msg = "NO CAPTURE DEVICE\nConnect a UVC HDMI/DP capture card (USB 3 SuperSpeed recommended)";
+                        msg = "NO CAPTURE DEVICE\nUse the same USB HDMI capture card as Meta HDMI Link.\nClose HDMI Link first, then Allow USB for Cine Quest.";
                         break;
                     case CaptureErrorCode.PermissionDenied:
                         msg = "USB PERMISSION DENIED\nUnplug and replug the capture card, then Accept";
