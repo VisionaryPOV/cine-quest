@@ -15,6 +15,8 @@ namespace CineQuest.Scopes
         public ScopeType Type => scopeType;
         public float Opacity => opacity;
 
+        public void SetType(ScopeType type) => scopeType = type;
+
         void LateUpdate()
         {
             if (scopeRenderer != null && scopeRenderer.sharedMaterial != null)

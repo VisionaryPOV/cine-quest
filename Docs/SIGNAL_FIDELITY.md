@@ -61,6 +61,10 @@ UVC MJPEG/H.264 decode is lossy. Prefer uncompressed or lightly compressed UVC f
 | **Locked** | Operating on set — parameters frozen; scene changes remain visible |
 | **Bypass** | Closest 1:1; ignore creative grade entirely |
 
+## Scopes vs display grade
+
+Waveform / parade / vectorscope sample the **capture analysis RT** (pre–LockedVideo creative grade). That matches engineering scopes: they show signal, not your monitoring look. Limited-range expand applies on the **display** path by default; scopes see the raw decoded texture unless you pre-process the analysis RT.
+
 ## Verification procedure
 
 See [TESTING_CHECKLIST.md](TESTING_CHECKLIST.md). Minimum bar:

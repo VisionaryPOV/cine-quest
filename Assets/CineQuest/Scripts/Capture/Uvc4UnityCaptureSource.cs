@@ -1,7 +1,5 @@
 // Cine Quest — Adapter for UVC4UnityAndroid (saki4510t).
-// Compiles without the plugin via CINE_QUEST_UVC4UNITY define.
-// Import the plugin, then add scripting define CINE_QUEST_UVC4UNITY.
-// See Docs/UVC_INTEGRATION.md.
+// Fail-closed: IsRunning only after a real texture (or InjectFrame). See Docs/UVC_INTEGRATION.md.
 
 using System;
 using System.Reflection;
@@ -21,13 +19,14 @@ namespace CineQuest.Capture
         int _prefH = 1080;
         float _prefFps = 60f;
         bool _running;
+        bool _startRequested;
         Texture _frame;
         CaptureStatus _status = CaptureStatus.Empty;
         float _fpsWindow;
         int _fpsCount;
         float _measuredFps;
+        float _startTime;
 
-        // Reflection handles into UVC4UnityAndroid (optional)
         object _uvcManager;
         Type _uvcManagerType;
         MethodInfo _miGetTexture;
@@ -37,7 +36,8 @@ namespace CineQuest.Capture
         bool _audioRunning;
         AudioClip _audioClip;
 
-        public bool IsRunning => _running;
+        /// <summary>True only when we have an open path that has produced (or injected) a frame.</summary>
+        public bool IsRunning => _running && _frame != null;
         public Texture CurrentFrame => _frame;
         public CaptureStatus Status => _status;
         public CaptureEvents Events => _events;
@@ -59,21 +59,43 @@ namespace CineQuest.Capture
 
         public void StartCapture()
         {
-            if (!_pluginPresent)
+            if (!_pluginPresent || _uvcManagerType == null)
             {
                 SetError(CaptureErrorCode.BackendUnavailable,
                     "UVC4UnityAndroid not found. Import the plugin and define CINE_QUEST_UVC4UNITY. See Docs/UVC_INTEGRATION.md");
                 return;
             }
 
+            if (_uvcManager == null)
+            {
+                // Re-probe for a scene instance (may appear after bootstrap).
+                TryBindPlugin();
+            }
+
+            if (_uvcManager == null)
+            {
+                SetError(CaptureErrorCode.BackendUnavailable,
+                    "UVCManager type found but no instance in scene. Add UVCManager (UVC4UnityAndroid) to the scene.");
+                return;
+            }
+
+            if (_miStart == null && _miGetTexture == null)
+            {
+                SetError(CaptureErrorCode.BackendUnavailable,
+                    "UVCManager API methods not found. Use InjectFrame from your UVC component, or update adapter method names.");
+                return;
+            }
+
             try
             {
-                // Plugin-specific start is highly version-dependent; prefer explicit binding.
                 _miStart?.Invoke(_uvcManager, null);
-                _running = true;
+                _startRequested = true;
+                _startTime = Time.unscaledTime;
+                // Fail-closed: do NOT set _running until a texture arrives (Tick or InjectFrame).
+                _running = false;
                 _status = new CaptureStatus
                 {
-                    IsStreaming = true,
+                    IsStreaming = false,
                     Width = _prefW,
                     Height = _prefH,
                     MeasuredFps = 0f,
@@ -81,7 +103,8 @@ namespace CineQuest.Capture
                     UsbSpeed = UsbLinkSpeed.Unknown,
                     ColorFormat = CaptureColorFormat.Unknown,
                     HasAudio = false,
-                    Error = CaptureErrorCode.None,
+                    Error = CaptureErrorCode.NoDevice,
+                    ErrorMessage = "Waiting for UVC frames…",
                     DeviceName = "UVC4Unity"
                 };
                 _events.RaiseStatus(_status);
@@ -95,6 +118,7 @@ namespace CineQuest.Capture
         public void StopCapture()
         {
             try { _miStop?.Invoke(_uvcManager, null); } catch { /* ignore */ }
+            _startRequested = false;
             _running = false;
             _frame = null;
             _status.IsStreaming = false;
@@ -103,29 +127,33 @@ namespace CineQuest.Capture
 
         public void Tick()
         {
-            if (!_running) return;
+            if (!_startRequested && !_running) return;
 
             try
             {
-                if (_miGetTexture != null)
+                if (_miGetTexture != null && _uvcManager != null)
                 {
                     var tex = _miGetTexture.Invoke(_uvcManager, null) as Texture;
-                    if (tex != null && tex != _frame)
+                    if (tex != null)
                     {
+                        bool isNew = tex != _frame;
                         _frame = tex;
-                        _events.RaiseFrame(_frame);
-                    }
-                    else if (tex != null)
-                    {
-                        _frame = tex;
+                        _running = true;
+                        if (isNew)
+                            _events.RaiseFrame(_frame);
                     }
                 }
 
-                // Also try common WebCamTexture fallback path if plugin exposes none.
-                if (_frame == null)
+                // Timeout if start was requested but no frames arrived.
+                if (_startRequested && _frame == null && Time.unscaledTime - _startTime > 3f)
                 {
-                    // Leave frame null; CaptureService may surface NoDevice/SignalLost.
+                    SetError(CaptureErrorCode.NoDevice,
+                        "UVC open requested but no texture after 3s. Check USB permission, card, and UVCManager wiring / InjectFrame.");
+                    _startRequested = false;
+                    return;
                 }
+
+                if (_frame == null) return;
 
                 _fpsCount++;
                 _fpsWindow += Time.unscaledDeltaTime;
@@ -136,30 +164,28 @@ namespace CineQuest.Capture
                     _fpsWindow = 0f;
                 }
 
-                if (_frame != null)
+                _status.IsStreaming = true;
+                _status.Width = _frame.width;
+                _status.Height = _frame.height;
+                _status.MeasuredFps = _measuredFps;
+                _status.EstimatedLatencyMs = EstimateLatencyMs(_status.Width, _status.Height, _status.UsbSpeed);
+                _status.DeviceName = "UVC4Unity";
+
+                if (_status.Width >= 1920 && _status.Height >= 1080 && _measuredFps > 0f && _measuredFps < 45f)
                 {
-                    _status.IsStreaming = true;
-                    _status.Width = _frame.width;
-                    _status.Height = _frame.height;
-                    _status.MeasuredFps = _measuredFps;
-                    _status.EstimatedLatencyMs = EstimateLatencyMs(_status.Width, _status.Height, _status.UsbSpeed);
+                    _status.UsbSpeed = UsbLinkSpeed.HiSpeed;
+                    _status.Error = CaptureErrorCode.UsbSpeedWarning;
+                    _status.ErrorMessage = "Frame rate low — use USB 3 SuperSpeed capture card & cable";
+                }
+                else
+                {
+                    if (_status.UsbSpeed == UsbLinkSpeed.Unknown && _measuredFps >= 55f)
+                        _status.UsbSpeed = UsbLinkSpeed.SuperSpeed;
                     _status.Error = CaptureErrorCode.None;
                     _status.ErrorMessage = null;
-
-                    // USB2 bandwidth heuristic for 1080p60 uncompressed-ish streams
-                    if (_status.Width >= 1920 && _status.Height >= 1080 && _measuredFps < 45f)
-                    {
-                        _status.UsbSpeed = UsbLinkSpeed.HiSpeed;
-                        _status.Error = CaptureErrorCode.UsbSpeedWarning;
-                        _status.ErrorMessage = "Frame rate low — use USB 3 SuperSpeed capture card & cable";
-                    }
-                    else if (_status.UsbSpeed == UsbLinkSpeed.Unknown && _measuredFps >= 55f)
-                    {
-                        _status.UsbSpeed = UsbLinkSpeed.SuperSpeed;
-                    }
-
-                    _events.RaiseStatus(_status);
                 }
+
+                _events.RaiseStatus(_status);
             }
             catch (Exception ex)
             {
@@ -169,7 +195,6 @@ namespace CineQuest.Capture
 
         public void StartAudio()
         {
-            // UVC4UnityAndroid UAC is experimental; wire when plugin present.
             _audioRunning = _audioClip != null;
         }
 
@@ -186,22 +211,29 @@ namespace CineQuest.Capture
         }
 
         /// <summary>
-        /// Allow CaptureService / integrators to inject the live texture when using
-        /// a custom UVC MonoBehaviour that already produces a Texture each frame.
+        /// Integrators with a known-good UVC MonoBehaviour should call this each frame (or on texture swap).
         /// </summary>
         public void InjectFrame(Texture texture, CaptureStatus status)
         {
             _frame = texture;
             _running = texture != null;
+            _startRequested = texture != null;
             _status = status;
-            if (texture != null) _events.RaiseFrame(texture);
+            if (texture != null)
+            {
+                _status.IsStreaming = true;
+                _events.RaiseFrame(texture);
+            }
+            else
+            {
+                _status.IsStreaming = false;
+            }
             _events.RaiseStatus(_status);
         }
 
         void TryBindPlugin()
         {
 #if CINE_QUEST_UVC4UNITY
-            // When define is set, look for common manager type names used by UVC4UnityAndroid.
             _uvcManagerType =
                 Type.GetType("Serenegiant.UVC.UVCManager, UVC4UnityAndroidPlugin") ??
                 Type.GetType("UVC.UVCManager") ??
@@ -224,14 +256,23 @@ namespace CineQuest.Capture
             _miStop = _uvcManagerType.GetMethod("Close", BindingFlags.Instance | BindingFlags.Public)
                       ?? _uvcManagerType.GetMethod("StopPreview", BindingFlags.Instance | BindingFlags.Public);
 
-            _pluginPresent = _uvcManager != null || _uvcManagerType != null;
+            // Plugin present only if we can actually talk to an instance (or InjectFrame will be used).
+            _pluginPresent = true;
 #else
-            // Soft probe without define — still works if types exist on classpath after import.
             _uvcManagerType = FindType("UVCManager");
             _pluginPresent = _uvcManagerType != null;
             if (_pluginPresent)
             {
                 Debug.Log("[CineQuest] UVCManager type found. Add scripting define CINE_QUEST_UVC4UNITY for full binding.");
+                var existing = UnityEngine.Object.FindObjectsByType(_uvcManagerType, FindObjectsSortMode.None);
+                if (existing != null && existing.Length > 0)
+                    _uvcManager = existing[0];
+                _miGetTexture = _uvcManagerType.GetMethod("GetTexture", BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic)
+                                ?? _uvcManagerType.GetMethod("get_PreviewTexture", BindingFlags.Instance | BindingFlags.Public);
+                _miStart = _uvcManagerType.GetMethod("Open", BindingFlags.Instance | BindingFlags.Public)
+                           ?? _uvcManagerType.GetMethod("StartPreview", BindingFlags.Instance | BindingFlags.Public);
+                _miStop = _uvcManagerType.GetMethod("Close", BindingFlags.Instance | BindingFlags.Public)
+                          ?? _uvcManagerType.GetMethod("StopPreview", BindingFlags.Instance | BindingFlags.Public);
             }
 #endif
         }
@@ -257,6 +298,8 @@ namespace CineQuest.Capture
 
         void SetError(CaptureErrorCode code, string message)
         {
+            _running = false;
+            _startRequested = false;
             _status.Error = code;
             _status.ErrorMessage = message;
             _status.IsStreaming = false;
@@ -267,8 +310,7 @@ namespace CineQuest.Capture
 
         static float EstimateLatencyMs(int w, int h, UsbLinkSpeed speed)
         {
-            // Engineering estimate only — not a hardware measurement.
-            float baseMs = 16f; // one display frame-ish
+            float baseMs = 16f;
             if (speed == UsbLinkSpeed.HiSpeed) baseMs += 20f;
             if (w * h > 1920 * 1080) baseMs += 8f;
             return baseMs;

@@ -33,12 +33,17 @@ namespace CineQuest.Capture
         [Header("Watchdog")]
         [SerializeField] float signalLostSeconds = 2f;
         [SerializeField] float reconnectIntervalSeconds = 3f;
+        [SerializeField] float statusBroadcastHz = 4f;
 
         IVideoCaptureSource _source;
         IAudioCaptureSource _audio;
         float _lastFrameTime;
         float _reconnectTimer;
+        float _lastStatusBroadcast;
         Texture _lastTexture;
+        CaptureStatus _lastBroadcastStatus;
+        Action<CaptureStatus> _statusHandler;
+        Action<Texture> _frameHandler;
 
         public IVideoCaptureSource Source => _source;
         public CaptureStatus Status => _source?.Status ?? CaptureStatus.Empty;
@@ -98,7 +103,7 @@ namespace CineQuest.Capture
                     var st = _source.Status;
                     st.Error = CaptureErrorCode.SignalLost;
                     st.ErrorMessage = "Signal lost — check HDMI/DP cable and capture card power";
-                    OnStatusChanged?.Invoke(st);
+                    BroadcastStatus(st, force: true);
 
                     _reconnectTimer += Time.unscaledDeltaTime;
                     if (_reconnectTimer >= reconnectIntervalSeconds)
@@ -115,7 +120,32 @@ namespace CineQuest.Capture
                 }
             }
 
-            OnStatusChanged?.Invoke(_source.Status);
+            // Throttled status (not every frame)
+            float interval = statusBroadcastHz > 0.1f ? 1f / statusBroadcastHz : 0.25f;
+            if (Time.unscaledTime - _lastStatusBroadcast >= interval)
+                BroadcastStatus(_source.Status, force: false);
+        }
+
+        void BroadcastStatus(CaptureStatus st, bool force)
+        {
+            if (!force && StatusEquals(st, _lastBroadcastStatus))
+                return;
+            _lastBroadcastStatus = st;
+            _lastStatusBroadcast = Time.unscaledTime;
+            OnStatusChanged?.Invoke(st);
+        }
+
+        static bool StatusEquals(CaptureStatus a, CaptureStatus b)
+        {
+            return a.IsStreaming == b.IsStreaming
+                   && a.Width == b.Width
+                   && a.Height == b.Height
+                   && a.Error == b.Error
+                   && a.UsbSpeed == b.UsbSpeed
+                   && a.HasAudio == b.HasAudio
+                   && Mathf.Abs(a.MeasuredFps - b.MeasuredFps) < 0.5f
+                   && a.ErrorMessage == b.ErrorMessage
+                   && a.DeviceName == b.DeviceName;
         }
 
         public void SetSyntheticPattern(SyntheticPattern pattern)
@@ -168,42 +198,90 @@ namespace CineQuest.Capture
                     break;
             }
 
-            if (_source.Events != null)
-            {
-                _source.Events.StatusChanged += s => OnStatusChanged?.Invoke(s);
-                _source.Events.FrameTextureChanged += t =>
-                {
-                    _lastTexture = t;
-                    _lastFrameTime = Time.unscaledTime;
-                    OnFrameChanged?.Invoke(t);
-                };
-            }
-
+            AttachSourceEvents();
             _source.Configure(preferredWidth, preferredHeight, preferredFps);
             _source.StartCapture();
 
-            // If UVC backend unavailable on device, fall back to synthetic so UI remains usable.
+            // Fail-closed: if primary never runs (no texture), fall back to synthetic.
             if (!_source.IsRunning && chosen != CaptureBackendKind.Synthetic)
             {
-                Debug.LogWarning("[CineQuest] Primary capture backend failed — falling back to synthetic patterns.");
-                TeardownSource();
-                var fallback = new EditorSyntheticCaptureSource(preferredWidth, preferredHeight)
+                // Give UVC a short grace only if start is in progress (waiting for first frame).
+                // UsbVideoNative / missing manager: IsRunning false immediately → fallback now.
+                bool waitingForFirstFrame = _source is Uvc4UnityCaptureSource
+                                            && _source.Status.Error == CaptureErrorCode.NoDevice
+                                            && !string.IsNullOrEmpty(_source.Status.ErrorMessage)
+                                            && _source.Status.ErrorMessage.Contains("Waiting");
+
+                if (!waitingForFirstFrame)
                 {
-                    Pattern = editorPattern
-                };
-                _source = fallback;
-                _source.Configure(preferredWidth, preferredHeight, preferredFps);
-                _source.StartCapture();
+                    FallbackToSynthetic(chosen);
+                }
+                // If waiting, Tick will surface timeout; optional delayed fallback:
+                else
+                {
+                    // Keep UVC path; CaptureService Update/watchdog + UVC 3s timeout handle failure.
+                    // For Editor device tests without card, user can switch backend.
+                }
+            }
+
+            // Immediate synthetic fallback when backend unavailable (not "waiting")
+            if (!_source.IsRunning
+                && chosen != CaptureBackendKind.Synthetic
+                && _source.Status.Error == CaptureErrorCode.BackendUnavailable)
+            {
+                FallbackToSynthetic(chosen);
             }
 
             _lastFrameTime = Time.unscaledTime;
-            Debug.Log($"[CineQuest] Capture backend: {chosen} running={_source.IsRunning}");
+            BroadcastStatus(_source.Status, force: true);
+            Debug.Log($"[CineQuest] Capture backend: {chosen} running={_source.IsRunning} err={_source.Status.Error}");
+        }
+
+        void FallbackToSynthetic(CaptureBackendKind failed)
+        {
+            Debug.LogWarning($"[CineQuest] Primary capture ({failed}) unavailable — falling back to synthetic patterns.");
+            TeardownSource();
+            var fallback = new EditorSyntheticCaptureSource(preferredWidth, preferredHeight)
+            {
+                Pattern = editorPattern
+            };
+            _source = fallback;
+            AttachSourceEvents();
+            _source.Configure(preferredWidth, preferredHeight, preferredFps);
+            _source.StartCapture();
+        }
+
+        void AttachSourceEvents()
+        {
+            if (_source?.Events == null) return;
+
+            _statusHandler = s => BroadcastStatus(s, force: true);
+            _frameHandler = t =>
+            {
+                _lastTexture = t;
+                _lastFrameTime = Time.unscaledTime;
+                OnFrameChanged?.Invoke(t);
+            };
+            _source.Events.StatusChanged += _statusHandler;
+            _source.Events.FrameTextureChanged += _frameHandler;
+        }
+
+        void DetachSourceEvents()
+        {
+            if (_source?.Events == null) return;
+            if (_statusHandler != null)
+                _source.Events.StatusChanged -= _statusHandler;
+            if (_frameHandler != null)
+                _source.Events.FrameTextureChanged -= _frameHandler;
+            _statusHandler = null;
+            _frameHandler = null;
         }
 
         void TeardownSource()
         {
             try
             {
+                DetachSourceEvents();
                 _audio?.StopAudio();
                 _audio?.Dispose();
                 _source?.StopCapture();

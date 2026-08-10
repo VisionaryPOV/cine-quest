@@ -30,18 +30,27 @@ namespace CineQuest.Core
             }
         }
 
-        /// <summary>Target analysis width for downsampling (height follows source aspect).</summary>
+        /// <summary>
+        /// Target analysis width for downsampling. Never larger than sourceWidth (no upscale).
+        /// Height should follow source aspect in the caller.
+        /// </summary>
         public static int AnalysisWidth(ScopeQuality mode, int sourceWidth)
         {
+            if (sourceWidth < 1) sourceWidth = 1;
+            int target;
             switch (mode)
             {
                 case ScopeQuality.High:
-                    return sourceWidth < 960 ? sourceWidth : 960;
+                    target = 960;
+                    break;
                 case ScopeQuality.Balanced:
-                    return 640;
+                    target = 640;
+                    break;
                 default:
-                    return 480;
+                    target = 480;
+                    break;
             }
+            return sourceWidth < target ? sourceWidth : target;
         }
     }
 }

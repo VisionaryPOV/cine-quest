@@ -1,5 +1,7 @@
 // Cine Quest — Wrist / palm settings menu: lock, params, scopes, presets, theater.
+// Single owner for runtime-built sliders so Lock/presets stay in sync.
 
+using System.Collections.Generic;
 using CineQuest.Capture;
 using CineQuest.Persistence;
 using CineQuest.Scopes;
@@ -11,7 +13,7 @@ namespace CineQuest.UI
 {
     /// <summary>
     /// Binds UI controls to image parameters and app features.
-    /// Wire sliders/toggles in the Inspector or via RuntimeSceneBuilder.
+    /// Wire sliders/toggles in the Inspector or via <see cref="BindSliders"/> / RuntimeSceneBuilder.
     /// </summary>
     public sealed class MonitorMenuController : MonoBehaviour
     {
@@ -65,11 +67,12 @@ namespace CineQuest.UI
         [SerializeField] bool startVisible = true;
 
         bool _suppressUi;
+        bool _wired;
 
         void Start()
         {
             AutoBind();
-            WireUi();
+            EnsureWired();
             PullFromModel();
             SetMenuVisible(startVisible);
 
@@ -99,6 +102,42 @@ namespace CineQuest.UI
             if (fc != null) falseColor = fc;
         }
 
+        public void BindMenuCanvas(CanvasGroup group)
+        {
+            if (group != null) menuCanvas = group;
+        }
+
+        /// <summary>Register runtime-created sliders so Lock and presets control them.</summary>
+        public void BindSliders(
+            Slider brightness, Text brightnessReadout,
+            Slider contrast, Text contrastReadout,
+            Slider gamma, Text gammaReadout,
+            Slider saturation, Text saturationReadout,
+            Slider temperature, Text temperatureReadout,
+            Slider tint, Text tintReadout,
+            Slider lift, Text liftReadout)
+        {
+            brightnessSlider = brightness;
+            brightnessValue = brightnessReadout;
+            contrastSlider = contrast;
+            contrastValue = contrastReadout;
+            gammaSlider = gamma;
+            gammaValue = gammaReadout;
+            saturationSlider = saturation;
+            saturationValue = saturationReadout;
+            temperatureSlider = temperature;
+            temperatureValue = temperatureReadout;
+            tintSlider = tint;
+            tintValue = tintReadout;
+            liftSlider = lift;
+            liftValue = liftReadout;
+
+            // Re-wire if already started
+            _wired = false;
+            EnsureWired();
+            PullFromModel();
+        }
+
         void AutoBind()
         {
             if (imageParams == null) imageParams = FindFirstObjectByType<ImageParameterController>();
@@ -110,6 +149,14 @@ namespace CineQuest.UI
             if (statusHud == null) statusHud = FindFirstObjectByType<StatusHud>();
             if (videoPanel == null) videoPanel = FindFirstObjectByType<VideoPanel>();
             if (falseColor == null) falseColor = FindFirstObjectByType<FalseColorController>();
+            if (menuCanvas == null) menuCanvas = GetComponent<CanvasGroup>();
+        }
+
+        void EnsureWired()
+        {
+            if (_wired) return;
+            WireUi();
+            _wired = true;
         }
 
         void WireUi()
@@ -120,6 +167,7 @@ namespace CineQuest.UI
                 imageParams?.SetLocked(v);
                 statusHud?.SetLockLabel(imageParams != null && imageParams.IsLocked,
                     imageParams != null && imageParams.IsBypass);
+                PullFromModel();
             });
 
             if (bypassToggle) bypassToggle.onValueChanged.AddListener(v =>
@@ -128,6 +176,7 @@ namespace CineQuest.UI
                 imageParams?.SetBypass(v);
                 statusHud?.SetLockLabel(imageParams != null && imageParams.IsLocked,
                     imageParams != null && imageParams.IsBypass);
+                PullFromModel();
             });
 
             if (limitedRangeToggle) limitedRangeToggle.onValueChanged.AddListener(v =>
@@ -181,7 +230,7 @@ namespace CineQuest.UI
             if (presetDropdown != null)
             {
                 presetDropdown.ClearOptions();
-                presetDropdown.AddOptions(new System.Collections.Generic.List<string>(PresetLibrary.AllNames));
+                presetDropdown.AddOptions(new List<string>(PresetLibrary.AllNames));
                 presetDropdown.onValueChanged.AddListener(i =>
                 {
                     if (_suppressUi) return;
@@ -194,9 +243,16 @@ namespace CineQuest.UI
         void WireSlider(Slider slider, Text readout, string param, System.Func<float, string> fmt)
         {
             if (slider == null) return;
+            slider.onValueChanged.RemoveAllListeners();
             slider.onValueChanged.AddListener(v =>
             {
                 if (_suppressUi) return;
+                // When locked, reject grade changes and snap UI back.
+                if (imageParams != null && imageParams.IsLocked)
+                {
+                    PullFromModel();
+                    return;
+                }
                 imageParams?.TrySet(param, v);
                 if (readout) readout.text = fmt(v);
             });
@@ -217,8 +273,13 @@ namespace CineQuest.UI
                 name = "User",
                 image = imageParams.Parameters.Clone(),
                 environment = theater != null && theater.Mode == EnvironmentMode.Theater ? "Theater" : "Passthrough",
-                qualityMode = scopeManager != null ? scopeManager.QualityMode.ToString() : "Balanced"
+                qualityMode = scopeManager != null ? scopeManager.QualityMode.ToString() : "Balanced",
+                falseColor = falseColor != null && falseColor.isActiveAndEnabled
             };
+
+            if (falseColor != null)
+                data.falseColor = falseColor.IsEnabled;
+
             if (videoPanel != null)
             {
                 data.mainPanel = new PanelPoseData
@@ -229,6 +290,8 @@ namespace CineQuest.UI
                     scale = videoPanel.transform.localScale
                 };
             }
+
+            data.scopes = CaptureScopePoses();
             layoutStore.Save(data);
         }
 
@@ -241,7 +304,71 @@ namespace CineQuest.UI
                 videoPanel.SetPose(data.mainPanel.position, data.mainPanel.rotation, data.mainPanel.scale);
             if (theater != null)
                 theater.SetMode(data.environment == "Theater" ? EnvironmentMode.Theater : EnvironmentMode.Passthrough);
+
+            if (scopeManager != null && !string.IsNullOrEmpty(data.qualityMode))
+            {
+                if (System.Enum.TryParse(data.qualityMode, true, out ScopeQualityMode qm))
+                    scopeManager.QualityMode = qm;
+            }
+
+            if (falseColor != null)
+                falseColor.SetEnabled(data.falseColor);
+
+            ApplyScopePoses(data.scopes);
             PullFromModel();
+        }
+
+        ScopePoseData[] CaptureScopePoses()
+        {
+            var panels = FindObjectsByType<ScopePanel>(FindObjectsSortMode.None);
+            if (panels == null || panels.Length == 0) return System.Array.Empty<ScopePoseData>();
+            var list = new List<ScopePoseData>(panels.Length);
+            foreach (var p in panels)
+            {
+                if (p == null) continue;
+                list.Add(new ScopePoseData
+                {
+                    type = p.Type.ToString(),
+                    enabled = p.gameObject.activeSelf,
+                    opacity = p.Opacity,
+                    position = p.transform.position,
+                    rotation = p.transform.rotation,
+                    scale = p.transform.localScale
+                });
+            }
+            return list.ToArray();
+        }
+
+        void ApplyScopePoses(ScopePoseData[] scopes)
+        {
+            if (scopes == null) return;
+            var panels = FindObjectsByType<ScopePanel>(FindObjectsSortMode.None);
+            foreach (var s in scopes)
+            {
+                if (s == null || string.IsNullOrEmpty(s.type)) continue;
+                if (!System.Enum.TryParse(s.type, true, out ScopeType st)) continue;
+
+                ScopePanel match = null;
+                if (panels != null)
+                {
+                    foreach (var p in panels)
+                    {
+                        if (p != null && p.Type == st) { match = p; break; }
+                    }
+                }
+
+                if (match == null)
+                {
+                    // Still toggle via manager if panel missing pose owner
+                    scopeManager?.SetScopeEnabled(st, s.enabled);
+                    continue;
+                }
+
+                match.gameObject.SetActive(s.enabled);
+                match.SetOpacity(s.opacity);
+                match.SetPose(s.position, s.rotation, s.scale);
+                scopeManager?.SetScopeEnabled(st, s.enabled);
+            }
         }
 
         public void ToggleMenu()
@@ -293,14 +420,14 @@ namespace CineQuest.UI
             SetSlider(tintSlider, tintValue, p.tint, "0.00");
             SetSlider(liftSlider, liftValue, p.lift, "0.00");
 
-            bool locked = p.locked;
-            SetInteractable(brightnessSlider, !locked);
-            SetInteractable(contrastSlider, !locked);
-            SetInteractable(gammaSlider, !locked);
-            SetInteractable(saturationSlider, !locked);
-            SetInteractable(temperatureSlider, !locked);
-            SetInteractable(tintSlider, !locked);
-            SetInteractable(liftSlider, !locked);
+            bool editable = !p.locked;
+            SetInteractable(brightnessSlider, editable);
+            SetInteractable(contrastSlider, editable);
+            SetInteractable(gammaSlider, editable);
+            SetInteractable(saturationSlider, editable);
+            SetInteractable(temperatureSlider, editable);
+            SetInteractable(tintSlider, editable);
+            SetInteractable(liftSlider, editable);
 
             statusHud?.SetLockLabel(p.locked, p.bypass);
             _suppressUi = false;

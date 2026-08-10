@@ -46,15 +46,31 @@ When the plugin UI or API allows format selection:
 2. MJPEG is acceptable if uncompressed overruns USB2.
 3. Disable any UVC Processing Unit (brightness/contrast/AWB) controls if exposed via `GetCtrls` / `SetValue`.
 
-### Binding the texture
+### Binding the texture (preferred: InjectFrame)
 
-`Uvc4UnityCaptureSource` tries reflection against `UVCManager`. If your package version uses different type names:
+Reflection against `UVCManager` is best-effort. **Production path:** attach `UvcFrameInjector` and call it from your plugin callback:
 
 ```csharp
-// From a MonoBehaviour that owns the plugin texture:
+// On your UVC preview component when a new Texture is ready:
+GetComponent<UvcFrameInjector>().NotifyTexture(previewTexture, width, height, fps);
+```
+
+Or directly:
+
+```csharp
 var uvc = CaptureService.Instance.Source as Uvc4UnityCaptureSource;
 uvc?.InjectFrame(myTexture, statusStruct);
 ```
+
+### External OES textures
+
+Many Android UVC plugins use `GL_TEXTURE_EXTERNAL_OES`. Enable on the monitor material:
+
+- Inspector: `LockedVideoRenderer` → **Use External Oes**, or  
+- `lockedVideo.SetUseExternalOes(true)` / `UvcFrameInjector.setOesOnLockedVideo = true`  
+- Shader keyword: `CQ_EXTERNAL_OES` on `CineQuest/LockedVideo`
+
+If OES sampling fails on a device, blit plugin frames into an `ARGB32` `RenderTexture` first (identity blit), then bind that RT without OES.
 
 ## facebookexperimental/usb-video bridge (optional)
 

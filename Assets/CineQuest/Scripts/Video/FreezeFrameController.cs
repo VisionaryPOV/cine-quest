@@ -1,4 +1,5 @@
 // Cine Quest — Freeze-frame for still analysis (display + scopes).
+// Single ownership: sets LockedVideoRenderer display freeze so live frames cannot clobber.
 
 using CineQuest.Capture;
 using UnityEngine;
@@ -13,7 +14,6 @@ namespace CineQuest.Video
 
         RenderTexture _freezeRt;
         bool _frozen;
-        Texture _liveBeforeFreeze;
 
         public bool IsFrozen => _frozen;
         public Texture AnalysisTexture => _frozen && _freezeRt != null
@@ -54,11 +54,12 @@ namespace CineQuest.Video
             EnsureRt(src.width, src.height);
             Graphics.Blit(src, _freezeRt);
             _frozen = true;
-            _liveBeforeFreeze = src;
 
-            if (freezeAffectsDisplay && videoRenderer != null && videoRenderer.Material != null)
+            if (freezeAffectsDisplay)
             {
-                videoRenderer.Material.SetTexture("_MainTex", _freezeRt);
+                if (videoRenderer == null) videoRenderer = GetComponent<LockedVideoRenderer>();
+                // Own display binding so CaptureService frame events cannot overwrite.
+                videoRenderer?.SetDisplayFrozen(true, _freezeRt);
             }
 
             FreezeChanged?.Invoke(true);
@@ -67,9 +68,11 @@ namespace CineQuest.Video
         public void Unfreeze()
         {
             _frozen = false;
-            if (freezeAffectsDisplay && videoRenderer != null && captureService != null && captureService.CurrentFrame != null)
+            if (freezeAffectsDisplay)
             {
-                videoRenderer.Material?.SetTexture("_MainTex", captureService.CurrentFrame);
+                if (videoRenderer == null) videoRenderer = GetComponent<LockedVideoRenderer>();
+                var live = captureService != null ? captureService.CurrentFrame : null;
+                videoRenderer?.SetDisplayFrozen(false, live);
             }
             FreezeChanged?.Invoke(false);
         }

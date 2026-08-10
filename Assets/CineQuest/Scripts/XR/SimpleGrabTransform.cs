@@ -1,20 +1,21 @@
 // Cine Quest — Lightweight grab for panels without requiring Meta Interaction SDK at compile time.
-// Works with mouse in Editor and XR controllers via Unity Input System when available.
-// When Meta Interaction SDK / XRI Grabbable is present, prefer those components on the same object.
+// Editor: mouse. Quest: XR grip near panel (UnityEngine.XR.InputDevices). Prefer Meta Interaction Grabbable when available.
 
+using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.InputSystem;
+using UnityEngine.XR;
 
 namespace CineQuest.XR
 {
     public sealed class SimpleGrabTransform : MonoBehaviour
     {
-        [SerializeField] float mouseDistance = 2f;
         [SerializeField] bool allowMouseInEditor = true;
-        [SerializeField] bool freezeInTheater = true;
+        [SerializeField] float controllerGrabRadius = 0.45f;
 
         Camera _cam;
-        bool _grabbing;
+        bool _mouseGrabbing;
+        bool _controllerGrabbing;
         float _grabDistance;
         Vector3 _grabOffset;
 
@@ -29,8 +30,8 @@ namespace CineQuest.XR
             if (allowMouseInEditor)
                 UpdateMouseGrab();
 #endif
-            // Optional: XR controller grip via Input System
-            UpdateControllerGrab();
+            if (!_mouseGrabbing)
+                UpdateControllerGrab();
         }
 
         void UpdateMouseGrab()
@@ -46,27 +47,24 @@ namespace CineQuest.XR
                 var ray = _cam.ScreenPointToRay(mouse.position.ReadValue());
                 if (Physics.Raycast(ray, out var hit, 10f) && hit.transform == transform)
                 {
-                    _grabbing = true;
+                    _mouseGrabbing = true;
                     _grabDistance = hit.distance;
                     _grabOffset = transform.position - hit.point;
                 }
             }
 
             if (mouse.leftButton.wasReleasedThisFrame)
-                _grabbing = false;
+                _mouseGrabbing = false;
 
-            if (_grabbing && mouse.leftButton.isPressed)
+            if (_mouseGrabbing && mouse.leftButton.isPressed)
             {
                 var ray = _cam.ScreenPointToRay(mouse.position.ReadValue());
-                // Scroll to change distance
                 float scroll = mouse.scroll.ReadValue().y;
                 if (Mathf.Abs(scroll) > 0.01f)
                     _grabDistance = Mathf.Clamp(_grabDistance - scroll * 0.05f, 0.3f, 8f);
 
-                var point = ray.GetPoint(_grabDistance);
-                transform.position = point + _grabOffset;
+                transform.position = ray.GetPoint(_grabDistance) + _grabOffset;
 
-                // Right-drag style rotate with R held
                 if (Keyboard.current != null && Keyboard.current.rKey.isPressed)
                 {
                     var delta = mouse.delta.ReadValue();
@@ -75,8 +73,7 @@ namespace CineQuest.XR
                 }
             }
 
-            // Scale with keyboard
-            if (Keyboard.current != null && _grabbing)
+            if (Keyboard.current != null && _mouseGrabbing)
             {
                 if (Keyboard.current.equalsKey.isPressed || Keyboard.current.numpadPlusKey.isPressed)
                     transform.localScale *= 1f + Time.deltaTime;
@@ -87,8 +84,46 @@ namespace CineQuest.XR
 
         void UpdateControllerGrab()
         {
-            // Placeholder for grip-based grab using XR Input Devices.
-            // Full hand tracking should use Meta Interaction SDK Grabbable / XRI.
+            // Unity XR subsystem (works without Meta Interaction SDK).
+            var rightDevices = new List<InputDevice>();
+            InputDevices.GetDevicesAtXRNode(XRNode.RightHand, rightDevices);
+            bool anyGrip = false;
+
+            foreach (var device in rightDevices)
+            {
+                if (!device.isValid) continue;
+                if (!device.TryGetFeatureValue(CommonUsages.gripButton, out bool grip) || !grip)
+                    continue;
+
+                anyGrip = true;
+                if (!device.TryGetFeatureValue(CommonUsages.devicePosition, out var pos))
+                    continue;
+
+                float radius = controllerGrabRadius * Mathf.Max(1f, transform.localScale.magnitude);
+                if (!_controllerGrabbing)
+                {
+                    if (Vector3.Distance(pos, transform.position) <= radius)
+                    {
+                        _controllerGrabbing = true;
+                        _grabOffset = transform.position - pos;
+                    }
+                }
+
+                if (_controllerGrabbing)
+                {
+                    transform.position = pos + _grabOffset;
+                    var head = _cam != null ? _cam.transform : Camera.main != null ? Camera.main.transform : null;
+                    if (head != null)
+                    {
+                        var look = transform.position - head.position;
+                        if (look.sqrMagnitude > 0.001f)
+                            transform.rotation = Quaternion.LookRotation(look.normalized, Vector3.up);
+                    }
+                }
+            }
+
+            if (!anyGrip)
+                _controllerGrabbing = false;
         }
     }
 }

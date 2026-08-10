@@ -32,6 +32,8 @@ static class Program
         Test_LayoutRoundTrip();
         Test_ScopeQualityPolicy();
         Test_ApplyPresetRespectsLock();
+        Test_DisplayFreezePolicy();
+        Test_AnalysisWidthNeverUpscales();
 
         Console.WriteLine();
         Console.WriteLine($"Result: {_passed} passed, {_failed} failed");
@@ -242,6 +244,23 @@ static class Program
         Assert(Near(p.contrast, 1f), "locked blocks non-bypass preset");
         p.ApplyPreset(iris, forceUnlock: true);
         Assert(Near(p.contrast, 1.05f), "forceUnlock applies preset");
+    }
+
+    static void Test_DisplayFreezePolicy()
+    {
+        Assert(DisplayFreezePolicy.ShouldBindLiveFrame(false), "live binds when not frozen");
+        Assert(!DisplayFreezePolicy.ShouldBindLiveFrame(true), "live blocked when frozen");
+        Assert(DisplayFreezePolicy.SelectAnalysisTexture(true, "freeze", "live") == "freeze", "analysis uses freeze");
+        Assert(DisplayFreezePolicy.SelectAnalysisTexture(false, "freeze", "live") == "live", "analysis uses live");
+        Assert(DisplayFreezePolicy.SelectAnalysisTexture(true, null, "live") == "live", "freeze null falls back live");
+    }
+
+    static void Test_AnalysisWidthNeverUpscales()
+    {
+        Assert(ScopeQualityPolicy.AnalysisWidth(ScopeQuality.Balanced, 320) == 320, "balanced no upscale 320");
+        Assert(ScopeQualityPolicy.AnalysisWidth(ScopeQuality.Performance, 100) == 100, "perf no upscale 100");
+        Assert(ScopeQualityPolicy.AnalysisWidth(ScopeQuality.High, 2000) == 960, "high caps 960");
+        Assert(ScopeQualityPolicy.AnalysisWidth(ScopeQuality.Balanced, 1920) == 640, "balanced 640");
     }
 
     static void Assert(bool condition, string name)

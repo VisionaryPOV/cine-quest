@@ -18,9 +18,9 @@ namespace CineQuest.EditorTools
         {
             var scene = EditorSceneManager.NewScene(NewSceneSetup.DefaultGameObjects, NewSceneMode.Single);
 
+            // RuntimeSceneBuilder owns CineQuestApp creation/binding — do not add a second CineQuestApp here.
             var bootstrap = new GameObject("CineQuest_Bootstrap");
             bootstrap.AddComponent<RuntimeSceneBuilder>();
-            bootstrap.AddComponent<CineQuestApp>();
 
             // Remove default directional light influence on monitoring (keep optional)
             foreach (var light in Object.FindObjectsByType<Light>(FindObjectsSortMode.None))

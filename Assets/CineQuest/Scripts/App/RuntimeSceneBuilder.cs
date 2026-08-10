@@ -79,11 +79,11 @@ namespace CineQuest.App
                 var mr = panelGo.GetComponent<MeshRenderer>();
                 if (mr != null) mr.sharedMaterial = mat;
             }
-            locked.Bind(capture, imgCtrl, mat);
             imgCtrl.SetMaterial(locked.Material ?? mat);
 
             var freeze = panelGo.GetComponent<FreezeFrameController>() ?? panelGo.AddComponent<FreezeFrameController>();
             freeze.Bind(capture, locked);
+            locked.Bind(capture, imgCtrl, mat, freeze);
 
             // False color overlay
             var fcGo = EnsureChild(panelGo, "FalseColorOverlay");
@@ -120,10 +120,10 @@ namespace CineQuest.App
             var scopesRoot = EnsureChild(root, "Scopes");
             var scopeMgr = scopesRoot.GetComponent<ScopeManager>() ?? scopesRoot.AddComponent<ScopeManager>();
 
-            var wfGo = CreateScopePanel(scopesRoot, "Waveform", new Vector3(-0.9f, 1.1f, 1.4f));
-            var paradeGo = CreateScopePanel(scopesRoot, "Parade", new Vector3(0.9f, 1.1f, 1.4f));
-            var vecGo = CreateScopePanel(scopesRoot, "Vectorscope", new Vector3(0f, 0.55f, 1.5f));
-            var histGo = CreateScopePanel(scopesRoot, "Histogram", new Vector3(0.9f, 0.55f, 1.5f));
+            var wfGo = CreateScopePanel(scopesRoot, "Waveform", new Vector3(-0.9f, 1.1f, 1.4f), ScopeType.Waveform);
+            var paradeGo = CreateScopePanel(scopesRoot, "Parade", new Vector3(0.9f, 1.1f, 1.4f), ScopeType.RgbParade);
+            var vecGo = CreateScopePanel(scopesRoot, "Vectorscope", new Vector3(0f, 0.55f, 1.5f), ScopeType.Vectorscope);
+            var histGo = CreateScopePanel(scopesRoot, "Histogram", new Vector3(0.9f, 0.55f, 1.5f), ScopeType.Histogram);
             paradeGo.SetActive(false);
             vecGo.SetActive(false);
             histGo.SetActive(false);
@@ -223,26 +223,27 @@ namespace CineQuest.App
 
             float sy = 210f;
             float sstep = 42f;
-            var (brS, _) = RuntimeUiFactory.CreateSliderRow(canvasGo.transform, "SBright", "Brightness",
-                new Vector2(0, sy), -1f, 1f, 0f, v => imgCtrl.TrySet("brightness", v));
+            // Sliders owned by MonitorMenuController (no direct TrySet) so Lock/presets stay correct.
+            var (brS, brT) = RuntimeUiFactory.CreateSliderRow(canvasGo.transform, "SBright", "Brightness",
+                new Vector2(0, sy), -1f, 1f, 0f, null);
             sy -= sstep;
-            var (ctS, _) = RuntimeUiFactory.CreateSliderRow(canvasGo.transform, "SContrast", "Contrast",
-                new Vector2(0, sy), 0f, 2f, 1f, v => imgCtrl.TrySet("contrast", v));
+            var (ctS, ctT) = RuntimeUiFactory.CreateSliderRow(canvasGo.transform, "SContrast", "Contrast",
+                new Vector2(0, sy), 0f, 2f, 1f, null);
             sy -= sstep;
-            var (gmS, _) = RuntimeUiFactory.CreateSliderRow(canvasGo.transform, "SGamma", "Gamma",
-                new Vector2(0, sy), 0.1f, 3f, 1f, v => imgCtrl.TrySet("gamma", v));
+            var (gmS, gmT) = RuntimeUiFactory.CreateSliderRow(canvasGo.transform, "SGamma", "Gamma",
+                new Vector2(0, sy), 0.1f, 3f, 1f, null);
             sy -= sstep;
-            var (satS, _) = RuntimeUiFactory.CreateSliderRow(canvasGo.transform, "SSat", "Saturation",
-                new Vector2(0, sy), 0f, 2f, 1f, v => imgCtrl.TrySet("saturation", v));
+            var (satS, satT) = RuntimeUiFactory.CreateSliderRow(canvasGo.transform, "SSat", "Saturation",
+                new Vector2(0, sy), 0f, 2f, 1f, null);
             sy -= sstep;
-            var (tmpS, _) = RuntimeUiFactory.CreateSliderRow(canvasGo.transform, "STemp", "Temperature",
-                new Vector2(0, sy), -1f, 1f, 0f, v => imgCtrl.TrySet("temperature", v));
+            var (tmpS, tmpT) = RuntimeUiFactory.CreateSliderRow(canvasGo.transform, "STemp", "Temperature",
+                new Vector2(0, sy), -1f, 1f, 0f, null);
             sy -= sstep;
-            var (tintS, _) = RuntimeUiFactory.CreateSliderRow(canvasGo.transform, "STint", "Tint",
-                new Vector2(0, sy), -1f, 1f, 0f, v => imgCtrl.TrySet("tint", v));
+            var (tintS, tintT) = RuntimeUiFactory.CreateSliderRow(canvasGo.transform, "STint", "Tint",
+                new Vector2(0, sy), -1f, 1f, 0f, null);
             sy -= sstep;
-            var (liftS, _) = RuntimeUiFactory.CreateSliderRow(canvasGo.transform, "SLift", "Lift / Black",
-                new Vector2(0, sy), -0.5f, 0.5f, 0f, v => imgCtrl.TrySet("lift", v));
+            var (liftS, liftT) = RuntimeUiFactory.CreateSliderRow(canvasGo.transform, "SLift", "Lift / Black",
+                new Vector2(0, sy), -0.5f, 0.5f, 0f, null);
 
             // Presets
             RuntimeUiFactory.CreateLabel(canvasGo.transform, "PresetHeader", "PRESETS",
@@ -314,9 +315,27 @@ namespace CineQuest.App
             var layout = layoutGo.GetComponent<LayoutStore>() ?? layoutGo.AddComponent<LayoutStore>();
 
             var appGo = EnsureChild(root, "CineQuestApp");
-            appGo.GetComponent<CineQuestApp>() ?? appGo.AddComponent<CineQuestApp>();
+            // Avoid duplicate app if Editor menu already placed one on bootstrap.
+            var existingApps = FindObjectsByType<CineQuestApp>(FindObjectsSortMode.None);
+            CineQuestApp app;
+            if (existingApps != null && existingApps.Length > 0)
+            {
+                app = existingApps[0];
+                if (app.gameObject != appGo)
+                {
+                    // Keep single instance; destroy empty placeholder
+                    Destroy(appGo);
+                }
+            }
+            else
+            {
+                app = appGo.GetComponent<CineQuestApp>() ?? appGo.AddComponent<CineQuestApp>();
+            }
 
             menu.Bind(imgCtrl, scopeMgr, theater, freeze, capture, layout, hud, panel, fc);
+            menu.BindMenuCanvas(cg);
+            menu.BindSliders(brS, brT, ctS, ctT, gmS, gmT, satS, satT, tmpS, tmpT, tintS, tintT, liftS, liftT);
+            app.Bind(capture, imgCtrl, layout, menu, scopeMgr, theater);
 
             var inputGo = EnsureChild(root, "XrInputActions");
             var input = inputGo.GetComponent<XrInputActions>() ?? inputGo.AddComponent<XrInputActions>();
@@ -342,12 +361,9 @@ namespace CineQuest.App
                 es.AddComponent<UnityEngine.InputSystem.UI.InputSystemUIInputModule>();
             }
 
-            // Keep references so compiler doesn't strip
             _ = statusOverlay;
-            _ = brS; _ = ctS; _ = gmS; _ = satS; _ = tmpS; _ = tintS; _ = liftS;
-            _ = cg;
 
-            Debug.Log("[CineQuest] RuntimeSceneBuilder complete. Editor: synthetic bars. Device: import UVC plugin.");
+            Debug.Log("[CineQuest] RuntimeSceneBuilder complete. Editor: synthetic bars. Device: import UVC plugin + Meta XR ray UI.");
         }
 
         static VideoStatusOverlay BuildVideoStatusOverlay(GameObject panelGo, CaptureService capture)
@@ -384,7 +400,7 @@ namespace CineQuest.App
             return overlay;
         }
 
-        static GameObject CreateScopePanel(GameObject parent, string name, Vector3 pos)
+        static GameObject CreateScopePanel(GameObject parent, string name, Vector3 pos, ScopeType type)
         {
             var go = EnsureChild(parent, name);
             go.transform.position = pos;
@@ -392,11 +408,13 @@ namespace CineQuest.App
             var mf = go.GetComponent<MeshFilter>() ?? go.AddComponent<MeshFilter>();
             mf.sharedMesh = CreateQuad();
             var mr = go.GetComponent<MeshRenderer>() ?? go.AddComponent<MeshRenderer>();
-            var sh = Shader.Find("CineQuest/ScopeWaveformViz")
-                     ?? Shader.Find("Universal Render Pipeline/Unlit")
-                     ?? Shader.Find("Unlit/Texture");
+            var sh = type == ScopeType.Vectorscope
+                ? (Shader.Find("CineQuest/ScopeVectorscopeViz") ?? Shader.Find("CineQuest/ScopeWaveformViz"))
+                : Shader.Find("CineQuest/ScopeWaveformViz");
+            sh ??= Shader.Find("Universal Render Pipeline/Unlit") ?? Shader.Find("Unlit/Texture");
             if (sh != null) mr.sharedMaterial = new Material(sh);
-            go.GetComponent<ScopePanel>() ?? go.AddComponent<ScopePanel>();
+            var panel = go.GetComponent<ScopePanel>() ?? go.AddComponent<ScopePanel>();
+            panel.SetType(type);
             go.GetComponent<SimpleGrabTransform>() ?? go.AddComponent<SimpleGrabTransform>();
             var box = go.GetComponent<BoxCollider>() ?? go.AddComponent<BoxCollider>();
             box.size = new Vector3(1f, 1f, 0.02f);

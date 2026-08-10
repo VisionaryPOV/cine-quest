@@ -86,8 +86,9 @@ python3 Tools/verify_fidelity_static.py
 4. Press **Play**.  
    `RuntimeSceneBuilder` constructs capture, video panel, scopes, menu, and HUD.  
    Editor uses **synthetic color bars** by default (no capture card required).
-5. Grab the panel (click-drag), `R`+drag to rotate, scroll distance, `+/-` scale.  
-6. Use menu buttons: Lock, Bypass, scopes, Theater, presets.
+5. Grab the panel (Editor: click-drag; Quest: grip near panel or Meta Interaction Grabbable once packages are imported). `R`+drag rotates in Editor; scroll distance; `+/-` scale.  
+6. Use menu buttons: Lock, Bypass, scopes, Theater, presets.  
+7. **On Quest:** import Meta XR + add XR Origin / ray interactors for UI poke-ray (bootstrap alone is Editor-first; see Monday runbook).
 
 ### Keyboard
 

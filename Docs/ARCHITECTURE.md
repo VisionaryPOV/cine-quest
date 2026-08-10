@@ -54,7 +54,7 @@ Source: analysis `RenderTexture` via `.Load`.
 
 ## Persistence
 
-`Application.persistentDataPath/cinequest_layout.json` via `LayoutStore` / `JsonUtility`.
+`Application.persistentDataPath/cinequest_layout.json` via `LayoutStore` / `CineQuest.Core.LayoutSerializer` (pure JSON round-trip tested).
 
 ## Extension points
 

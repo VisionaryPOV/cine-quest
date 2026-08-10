@@ -19,17 +19,19 @@
    - Key **4** = CheckerPulse still pulses when Locked  
 4. Stop Play.
 
-### B. Packages (if not done)
+### B. Packages (**blockers** for real Quest use — not optional polish)
 
 1. Package Manager → install **Meta XR All-in-One** (`com.meta.xr.sdk.all`) via Meta scoped registry.
 2. XR Plug-in Management → **Android** → OpenXR + Meta feature group.
 3. Enable **Passthrough** + **Hand Tracking** features.
-4. Import **UVC4UnityAndroid** release `.unitypackage` (r0.5+ / Unity 6).
-5. Player Settings → Android → Scripting Define Symbols → add **`CINE_QUEST_UVC4UNITY`**  
+4. Add **XR Origin / Camera Rig + ray interactors** (Meta Building Blocks or XRI) so world-space UI is pointable. Bootstrap alone is Editor-first (mouse grab).
+5. Import **UVC4UnityAndroid** release `.unitypackage` (r0.5+ / Unity 6).
+6. Player Settings → Android → Scripting Define Symbols → add **`CINE_QUEST_UVC4UNITY`**  
    (or Setup Wizard button).
-6. Graphics APIs: **OpenGLES3** first (remove Vulkan for first build).
-7. IL2CPP, ARM64 only, Min API 32, package `com.cinequest.monitor`.
-8. Custom Main Manifest: **enabled**.
+7. Graphics APIs: **OpenGLES3** first (remove Vulkan for first build).
+8. IL2CPP, ARM64 only, Min API 32, package `com.cinequest.monitor`.
+9. Custom Main Manifest: **enabled**.
+10. Prefer wiring UVC frames via `Uvc4UnityCaptureSource.InjectFrame` if reflection does not resolve your plugin version.
 
 ### C. Scene for device (quick)
 

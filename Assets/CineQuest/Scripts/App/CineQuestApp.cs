@@ -33,9 +33,37 @@ namespace CineQuest.App
         [SerializeField] bool disableVolumePostProcess = true;
         [SerializeField] bool loadLayoutOnStart = true;
         [SerializeField] bool startInBypass = false;
+        bool _startRan;
+
+        /// <summary>Wire systems created by RuntimeSceneBuilder (serialized fields stay null otherwise).</summary>
+        public void Bind(
+            CaptureService capture,
+            ImageParameterController img,
+            LayoutStore store,
+            MonitorMenuController menuCtrl,
+            ScopeManager scopes,
+            TheaterModeController theaterCtrl)
+        {
+            if (capture != null) captureService = capture;
+            if (img != null) imageParams = img;
+            if (store != null) layoutStore = store;
+            if (menuCtrl != null) menu = menuCtrl;
+            if (scopes != null) scopeManager = scopes;
+            if (theaterCtrl != null) theater = theaterCtrl;
+
+            // If Start already ran with null refs, apply policy now.
+            if (_startRan)
+                ApplyStartPolicy();
+        }
 
         void Awake()
         {
+            if (Instance != null && Instance != this)
+            {
+                Debug.LogWarning("[CineQuest] Duplicate CineQuestApp destroyed.");
+                Destroy(this);
+                return;
+            }
             Instance = this;
             Application.targetFrameRate = targetFrameRate;
             QualitySettings.vSyncCount = 0;
@@ -47,6 +75,12 @@ namespace CineQuest.App
         }
 
         void Start()
+        {
+            _startRan = true;
+            ApplyStartPolicy();
+        }
+
+        void ApplyStartPolicy()
         {
             if (startInBypass && imageParams != null)
                 imageParams.SetBypass(true);
@@ -62,7 +96,6 @@ namespace CineQuest.App
             var cam = Camera.main;
             if (cam != null && theater != null && theater.Mode == EnvironmentMode.Passthrough)
             {
-                // Solid black clear is safer when passthrough underlay is managed by Meta XR.
                 cam.clearFlags = CameraClearFlags.SolidColor;
                 cam.backgroundColor = new Color(0, 0, 0, 0);
             }

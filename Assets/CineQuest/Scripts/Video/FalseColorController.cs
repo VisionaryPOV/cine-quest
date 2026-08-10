@@ -15,8 +15,13 @@ namespace CineQuest.Video
         Material _mat;
         bool _enabled;
 
+        public bool IsEnabled => _enabled;
+
         void Awake()
         {
+            if (overlayRenderer == null)
+                overlayRenderer = GetComponent<Renderer>();
+
             if (falseColorMaterial == null)
             {
                 var sh = Shader.Find("CineQuest/FalseColor");
