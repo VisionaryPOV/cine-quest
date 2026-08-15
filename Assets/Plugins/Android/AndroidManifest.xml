@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!--
-  Lean first-debug manifest. Re-add HAND_TRACKING / HEADSET_CAMERA / RECORD_AUDIO
+  Lean first-debug manifest. Re-add hand / headset-cam / mic perms
   only when those features are actually in the APK (Meta XR / UAC).
   Do NOT auto-launch on USB attach (would steal HDMI Link on a shared headset).
 -->
