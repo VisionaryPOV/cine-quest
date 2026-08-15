@@ -151,11 +151,12 @@ namespace CineQuest.App
             canvasGo.GetComponent<CanvasScaler>() ?? canvasGo.AddComponent<CanvasScaler>();
             canvasGo.GetComponent<GraphicRaycaster>() ?? canvasGo.AddComponent<GraphicRaycaster>();
             var menuRt = canvasGo.GetComponent<RectTransform>();
-            menuRt.sizeDelta = new Vector2(900, 1100);
-            menuRt.localScale = Vector3.one * 0.001f;
-            canvasGo.transform.position = cam.transform.position + cam.transform.forward * 0.75f +
-                                          cam.transform.right * -0.4f + Vector3.up * -0.05f;
+            // Compact operator sheet off-axis — not a 1 m slab in the picture.
+            canvasGo.transform.position = cam.transform.position + cam.transform.forward * 0.62f +
+                                          cam.transform.right * -0.38f + Vector3.up * -0.12f;
             canvasGo.transform.rotation = Quaternion.LookRotation(canvasGo.transform.position - cam.transform.position);
+            menuRt.sizeDelta = new Vector2(720, 900);
+            menuRt.localScale = Vector3.one * 0.00048f;
 
             var cg = canvasGo.GetComponent<CanvasGroup>() ?? canvasGo.AddComponent<CanvasGroup>();
 
@@ -268,10 +269,10 @@ namespace CineQuest.App
                 new Vector2(150, 40), () => menu.LoadLayout());
 
             RuntimeUiFactory.CreateLabel(canvasGo.transform, "Help",
-                "Keys: M menu · L lock · B bypass · T theater · F freeze · H HUD · S save · O load\n" +
-                "Patterns: 1 bars · 2 ramp · 3 18% · 4 pulse · 5 skin | Grab: drag · scroll · R rotate · +/- scale",
-                new Vector2(0, -280), new Vector2(860, 60), 12, TextAnchor.MiddleCenter,
-                new Color(0.5f, 0.55f, 0.6f));
+                "Quest: A Bypass · B Lock · Menu toggles this sheet · stick click Theater · L-grip+trigger Freeze\n" +
+                "Editor: M menu · L lock · B bypass · T theater · F freeze · 4 pulse",
+                new Vector2(0, -280), new Vector2(680, 70), 16, TextAnchor.MiddleCenter,
+                new Color(0.7f, 0.75f, 0.78f));
 
             // Status HUD
             var hudGo = EnsureChild(uiRoot, "StatusHUD");
@@ -304,11 +305,16 @@ namespace CineQuest.App
                 new Vector2(160, 24), 13, TextAnchor.MiddleLeft, new Color(0.7f, 0.75f, 0.8f));
             var bat = RuntimeUiFactory.CreateLabel(hudGo.transform, "Battery", "Bat —", new Vector2(-120, -18),
                 new Vector2(120, 24), 13, TextAnchor.MiddleLeft, new Color(0.7f, 0.75f, 0.8f));
-            var warn = RuntimeUiFactory.CreateLabel(hudGo.transform, "Warning", "", new Vector2(80, -18),
-                new Vector2(320, 24), 13, TextAnchor.MiddleLeft, new Color(1f, 0.4f, 0.3f));
-            var lockLbl = RuntimeUiFactory.CreateLabel(hudGo.transform, "LockState", "UNLOCKED", new Vector2(340, -18),
-                new Vector2(140, 24), 14, TextAnchor.MiddleRight, new Color(0.6f, 1f, 0.6f));
+            var warn = RuntimeUiFactory.CreateLabel(hudGo.transform, "Warning", "", new Vector2(40, -22),
+                new Vector2(640, 28), 18, TextAnchor.MiddleLeft, new Color(1f, 0.55f, 0.4f));
+            warn.horizontalOverflow = HorizontalWrapMode.Wrap;
+            var lockLbl = RuntimeUiFactory.CreateLabel(hudGo.transform, "LockState", "REF BYPASS", new Vector2(340, 18),
+                new Vector2(160, 28), 16, TextAnchor.MiddleRight, new Color(0.45f, 0.9f, 1f));
             hud.BindTexts(res, fps, usb, lat, fmt, bat, warn, lockLbl);
+            hud.BindFreeze(freeze);
+            hud.BindImageParams(imgCtrl);
+            var hudCg = hudGo.GetComponent<CanvasGroup>() ?? hudGo.AddComponent<CanvasGroup>();
+            hud.BindCanvasGroup(hudCg);
 
             // Systems
             var layoutGo = EnsureChild(root, "LayoutStore");
@@ -370,7 +376,8 @@ namespace CineQuest.App
         {
             var go = EnsureChild(panelGo, "StatusOverlay");
             go.transform.localPosition = new Vector3(0, 0, -0.002f);
-            go.transform.localRotation = Quaternion.identity;
+            // Face the user after parent panel Y-180 (world canvas faces −Z).
+            go.transform.localEulerAngles = new Vector3(0f, 180f, 0f);
             go.transform.localScale = Vector3.one * 0.001f;
 
             var canvas = go.GetComponent<Canvas>() ?? go.AddComponent<Canvas>();
@@ -391,7 +398,7 @@ namespace CineQuest.App
             bgRt.offsetMax = Vector2.zero;
 
             var msg = RuntimeUiFactory.CreateLabel(go.transform, "Message", "",
-                Vector2.zero, new Vector2(1400, 400), 36, TextAnchor.MiddleCenter, Color.white);
+                Vector2.zero, new Vector2(1400, 400), 56, TextAnchor.MiddleCenter, Color.white);
             msg.horizontalOverflow = HorizontalWrapMode.Wrap;
             msg.verticalOverflow = VerticalWrapMode.Overflow;
 

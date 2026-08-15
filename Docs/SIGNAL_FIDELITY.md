@@ -47,7 +47,7 @@ Document the OS build you tested on for each production show.
 
 ### 3. Capture card / HDMI processing
 
-Some capture cards re-time, scale, or convert color. Prefer cards that advertise clean pass-through at 1080p60. HDCP-encrypted sources may blank entirely — Cine Quest will show an HDCP warning when detected/inferred.
+Some capture cards re-time, scale, or convert color. Prefer cards that advertise clean pass-through at 1080p60. **HDCP-protected HDMI often blanks at the capture card. Cine Quest cannot read HDCP status** and will not show a dedicated “HDCP detected” flag — a protected source looks like black / no signal.
 
 ### 4. Decode path
 

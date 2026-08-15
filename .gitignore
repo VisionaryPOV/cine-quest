@@ -47,6 +47,14 @@ crashlytics-build.properties
 # Addressables (if added later)
 ServerData/
 
+# Secrets / signing
+*.keystore
+*.jks
+*.pem
+user.keystore
+.env
+*.env
+
 # Local UVC plugin drop-in (large binaries — document import path)
 ThirdParty/UVC4UnityAndroid/
 Assets/UVC4UnityAndroidPlugin/

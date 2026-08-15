@@ -189,7 +189,7 @@ Details: [Docs/SIGNAL_FIDELITY.md](Docs/SIGNAL_FIDELITY.md)
 |------------|--------|
 | Not a reference monitor | Headset optics/compositor ≠ calibrated grade monitor |
 | ~1080p practical max | Higher only if card + USB bandwidth allow |
-| HDCP | Protected sources may blank; warning when detected |
+| HDCP | Protected sources may blank at the card; app cannot detect HDCP flags |
 | USB2 | Hi-Speed often insufficient for clean 1080p60 |
 | Audio latency | UAC via Unity is reference-only |
 | Meta XR binaries | Installed via Package Manager (not vendored here) |

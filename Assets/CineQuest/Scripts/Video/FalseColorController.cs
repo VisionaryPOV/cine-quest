@@ -1,6 +1,7 @@
 // Cine Quest — Optional false-color / zebra overlay on a secondary quad.
 
 using CineQuest.Capture;
+using CineQuest.Core;
 using UnityEngine;
 
 namespace CineQuest.Video
@@ -51,7 +52,13 @@ namespace CineQuest.Video
 
         void OnFrame(Texture t)
         {
-            if (_mat != null && t != null) _mat.mainTexture = t;
+            if (_mat == null) return;
+            var freeze = FindFirstObjectByType<FreezeFrameController>();
+            var chosen = DisplayFreezePolicy.SelectAnalysisTexture(
+                freeze != null && freeze.IsFrozen,
+                freeze != null ? freeze.AnalysisTexture : null,
+                t);
+            if (chosen != null) _mat.mainTexture = chosen;
         }
 
         public void SetEnabled(bool enabled)

@@ -102,9 +102,10 @@ def main() -> int:
     man = read("Assets/Plugins/Android/AndroidManifest.xml")
     check("AndroidManifest", bool(man))
     check("CAMERA permission", "android.permission.CAMERA" in man)
-    check("RECORD_AUDIO permission", "android.permission.RECORD_AUDIO" in man)
     check("USB host feature", "android.hardware.usb.host" in man)
-    check("USB attach intent", "USB_DEVICE_ATTACHED" in man)
+    # Lean sideload: no USB_DEVICE_ATTACHED (would steal HDMI Link); no unused mic/hands
+    check("No USB auto-launch (HDMI Link safe)", "USB_DEVICE_ATTACHED" not in man)
+    check("No unused HEADSET_CAMERA", "HEADSET_CAMERA" not in man)
     check("usb_device_filter.xml", exists("Assets/Plugins/Android/res/xml/usb_device_filter.xml"))
     check("BUILD_AND_DEPLOY.md", exists("Docs/BUILD_AND_DEPLOY.md"))
     check("UVC_INTEGRATION.md", exists("Docs/UVC_INTEGRATION.md"))

@@ -7,6 +7,7 @@ namespace CineQuest.Core
     public static class PresetCatalog
     {
         public const string NeutralLock = "Neutral Lock";
+        /// <summary>Look-assist preset (slight contrast/sat). Not a reference / Bypass path.</summary>
         public const string IrisEvaluation = "Iris Evaluation";
         public const string LightingBalance = "Lighting Balance";
         public const string SkinToneCheck = "Skin Tone Check";

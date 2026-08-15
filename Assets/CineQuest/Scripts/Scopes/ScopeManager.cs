@@ -92,7 +92,7 @@ namespace CineQuest.Scopes
         {
             int w = ScopeQualityPolicy.AnalysisWidth((ScopeQuality)(int)qualityMode, src.width);
             float aspect = src.width / (float)Mathf.Max(1, src.height);
-            int h = Mathf.RoundToInt(w / aspect);
+            int h = Mathf.Max(1, Mathf.RoundToInt(w / aspect));
 
             if (_analysisRt != null && _analysisRt.width == w && _analysisRt.height == h) return;
             ReleaseAnalysis();

@@ -31,8 +31,8 @@ namespace CineQuest.App
         [Header("Policy")]
         [SerializeField] int targetFrameRate = 72;
         [SerializeField] bool disableVolumePostProcess = true;
-        [SerializeField] bool loadLayoutOnStart = true;
-        [SerializeField] bool startInBypass = false;
+        [SerializeField] bool loadLayoutOnStart = false;
+        [SerializeField] bool startInBypass = true;
         bool _startRan;
 
         /// <summary>Wire systems created by RuntimeSceneBuilder (serialized fields stay null otherwise).</summary>
@@ -85,11 +85,15 @@ namespace CineQuest.App
             if (startInBypass && imageParams != null)
                 imageParams.SetBypass(true);
 
+            bool loadedLayout = false;
             if (loadLayoutOnStart && layoutStore != null && menu != null)
+            {
                 menu.LoadLayout();
+                loadedLayout = true;
+            }
 
-            // Default quality for scopes
-            if (scopeManager != null)
+            // Default quality only when no layout applied a mode
+            if (scopeManager != null && !loadedLayout)
                 scopeManager.QualityMode = ScopeQualityMode.Balanced;
 
             // Ensure passthrough-friendly clear flags if no Meta layer yet

@@ -64,7 +64,7 @@ namespace CineQuest.UI
 
         [Header("Visibility")]
         [SerializeField] CanvasGroup menuCanvas;
-        [SerializeField] bool startVisible = true;
+        [SerializeField] bool startVisible = false;
 
         bool _suppressUi;
         bool _wired;

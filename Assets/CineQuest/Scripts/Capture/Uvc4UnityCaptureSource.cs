@@ -145,12 +145,15 @@ namespace CineQuest.Capture
                 }
 
                 // Timeout if start was requested but no frames arrived.
-                if (_startRequested && _frame == null && Time.unscaledTime - _startTime > 3f)
+                if (_startRequested && _frame == null && Time.unscaledTime - _startTime > Core.CaptureLifecyclePolicy.FirstFrameTimeoutSeconds)
                 {
-                    SetError(CaptureErrorCode.NoDevice,
-                        "No UVC frames after 3s. Close Meta HDMI Link, allow USB for Cine Quest (same capture card), check UVCManager / InjectFrame.");
-                    _startRequested = false;
-                    return;
+                    // Keep polling — do not clear _startRequested (hotplug after timeout).
+                    _status.Error = CaptureErrorCode.NoDevice;
+                    _status.ErrorMessage =
+                        "No UVC frames yet. Close HDMI Link, allow USB for Cine Quest (same capture card).";
+                    _status.IsStreaming = false;
+                    _events.RaiseStatus(_status);
+                    _startTime = Time.unscaledTime; // re-arm message cadence
                 }
 
                 if (_frame == null) return;
@@ -299,7 +302,9 @@ namespace CineQuest.Capture
         void SetError(CaptureErrorCode code, string message)
         {
             _running = false;
-            _startRequested = false;
+            // Keep _startRequested if we still want Tick to poll after a soft NoDevice.
+            if (code != CaptureErrorCode.NoDevice)
+                _startRequested = false;
             _status.Error = code;
             _status.ErrorMessage = message;
             _status.IsStreaming = false;

@@ -11,7 +11,7 @@ namespace CineQuest.XR
     public sealed class SimpleGrabTransform : MonoBehaviour
     {
         [SerializeField] bool allowMouseInEditor = true;
-        [SerializeField] float controllerGrabRadius = 0.45f;
+        [SerializeField] float controllerGrabRadius = 0.18f;
 
         Camera _cam;
         bool _mouseGrabbing;
@@ -30,8 +30,14 @@ namespace CineQuest.XR
             if (allowMouseInEditor)
                 UpdateMouseGrab();
 #endif
-            if (!_mouseGrabbing)
+            if (!_mouseGrabbing && !TheaterActive())
                 UpdateControllerGrab();
+        }
+
+        static bool TheaterActive()
+        {
+            var th = Object.FindFirstObjectByType<CineQuest.Video.TheaterModeController>();
+            return th != null && th.Mode == CineQuest.Video.EnvironmentMode.Theater;
         }
 
         void UpdateMouseGrab()
@@ -85,11 +91,12 @@ namespace CineQuest.XR
         void UpdateControllerGrab()
         {
             // Unity XR subsystem (works without Meta Interaction SDK).
-            var rightDevices = new List<InputDevice>();
-            InputDevices.GetDevicesAtXRNode(XRNode.RightHand, rightDevices);
+            var devices = new List<InputDevice>();
+            InputDevices.GetDevicesAtXRNode(XRNode.RightHand, devices);
+            InputDevices.GetDevicesAtXRNode(XRNode.LeftHand, devices);
             bool anyGrip = false;
 
-            foreach (var device in rightDevices)
+            foreach (var device in devices)
             {
                 if (!device.isValid) continue;
                 if (!device.TryGetFeatureValue(CommonUsages.gripButton, out bool grip) || !grip)

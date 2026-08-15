@@ -34,6 +34,7 @@ static class Program
         Test_ApplyPresetRespectsLock();
         Test_DisplayFreezePolicy();
         Test_AnalysisWidthNeverUpscales();
+        Test_CaptureLifecyclePolicy();
 
         Console.WriteLine();
         Console.WriteLine($"Result: {_passed} passed, {_failed} failed");
@@ -261,6 +262,18 @@ static class Program
         Assert(ScopeQualityPolicy.AnalysisWidth(ScopeQuality.Performance, 100) == 100, "perf no upscale 100");
         Assert(ScopeQualityPolicy.AnalysisWidth(ScopeQuality.High, 2000) == 960, "high caps 960");
         Assert(ScopeQualityPolicy.AnalysisWidth(ScopeQuality.Balanced, 1920) == 640, "balanced 640");
+    }
+
+    static void Test_CaptureLifecyclePolicy()
+    {
+        Assert(CaptureLifecyclePolicy.AllowSilentSyntheticFallback(true), "editor may silent fallback");
+        Assert(!CaptureLifecyclePolicy.AllowSilentSyntheticFallback(false), "device no silent fallback");
+        Assert(CaptureLifecyclePolicy.ShouldKeepPollingAfterTimeout, "keep polling after timeout");
+        Assert(CaptureLifecyclePolicy.IsSyntheticDeviceName("Synthetic/ColorBars"), "synthetic name");
+        Assert(!CaptureLifecyclePolicy.IsSyntheticDeviceName("UVC4Unity"), "uvc not synthetic");
+        Assert(!CaptureLifecyclePolicy.ShouldWatchdogReconnect(true, true, 0.1f, 2f), "fresh stream no reconnect");
+        Assert(CaptureLifecyclePolicy.ShouldWatchdogReconnect(false, true, 3f, 2f), "lost after had-frame reconnects");
+        Assert(!CaptureLifecyclePolicy.ShouldWatchdogReconnect(false, false, 5f, 2f), "never had frame no reconnect");
     }
 
     static void Assert(bool condition, string name)

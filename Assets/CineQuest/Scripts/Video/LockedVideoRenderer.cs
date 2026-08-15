@@ -20,7 +20,12 @@ namespace CineQuest.Video
         [SerializeField] bool createMaterialInstance = true;
         [SerializeField] bool flipY;
         [Tooltip("Enable GL_TEXTURE_EXTERNAL_OES sampling (many Android UVC plugins).")]
-        [SerializeField] bool useExternalOes;
+        [SerializeField] bool useExternalOes =
+#if UNITY_ANDROID && !UNITY_EDITOR
+            true;
+#else
+            false;
+#endif
 
         Renderer _renderer;
         Material _mat;
@@ -79,7 +84,8 @@ namespace CineQuest.Video
             _renderer = GetComponent<Renderer>();
             if (lockedVideoMaterial == null)
             {
-                var shader = Shader.Find("CineQuest/LockedVideo");
+                var shader = Shader.Find("CineQuest/LockedVideo")
+                             ?? Resources.Load<Shader>("Shaders/LockedVideo");
                 if (shader != null)
                     lockedVideoMaterial = new Material(shader) { name = "LockedVideo_Runtime" };
             }

@@ -19,6 +19,24 @@ If APK is not ready: still run **Phase 1 synthetic** and explain live path statu
 
 ---
 
+## Controller map (no menu required)
+
+| Control | Action |
+|---------|--------|
+| **A** (right primary) | Toggle **Bypass** |
+| **B** (right secondary) | Toggle **Lock** |
+| **Menu / Y** | Show/hide operator sheet |
+| **Stick click** | Theater / Passthrough |
+| **Left grip + trigger** | Freeze |
+
+App boots in **Reference Bypass**, menu **hidden**. HUD says **SYNTHETIC — NOT CAMERA** if the APK is not on a live card.
+
+**Do not** use Iris Evaluation / Lighting Balance / Skin Tone for the trust test. Use **REF BYPASS** only. Waveform IRE numbers are **not** legal; judge motion, not the 100 line.
+
+**Do not invite the DP** until you have: stereo tracking + bars + **A toggles Bypass** on the headset.
+
+---
+
 ## Talk track (30 seconds)
 
 > “Quest doesn’t have HDMI in. HDMI Link uses a USB capture dongle and then **auto-enhances** the image, so you can’t trust iris and light moves. Cine Quest uses **that same dongle**, but shows a **locked** picture with scopes—no auto brightness or contrast.”

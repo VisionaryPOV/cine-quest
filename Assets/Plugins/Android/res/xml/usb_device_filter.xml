@@ -1,16 +1,10 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!--
-  Broad UVC (Video) and UAC (Audio) class filters for capture cards.
-  Class 14 = Video, Class 1 = Audio. Subclass/protocol wildcards via omit.
-  Some cards enumerate as vendor-specific; UVC4UnityAndroid also handles attach
-  via its own permission flow after import.
+  UVC video only. Do NOT include USB Audio class 1 (would match headphones).
+  Auto-launch intent was removed from the manifest so HDMI Link is not stolen.
+  Pin VID/PID here after first dumpsys if a vendor-class card is not enumerated as class 14.
 -->
 <resources>
-    <!-- USB Video Class devices -->
-    <usb-device class="14" />
-    <!-- USB Audio Class devices (many capture cards combine UVC+UAC) -->
-    <usb-device class="1" />
-    <!-- Common capture-card interfaces: Video Control / Streaming -->
     <usb-device class="14" subclass="1" />
     <usb-device class="14" subclass="2" />
 </resources>

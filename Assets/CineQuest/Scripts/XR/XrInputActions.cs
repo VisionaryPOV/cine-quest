@@ -1,10 +1,12 @@
-// Cine Quest — High-level XR / keyboard actions for menu, freeze, lock, theater.
-// Hand tracking first-class: Meta Interaction SDK buttons should call the same public methods.
+// Cine Quest — Keyboard (Editor) + Quest controller buttons (no rays required).
+// A = Bypass · B = Lock · Menu/Y = menu · X = Freeze · stick click = Theater
 
+using System.Collections.Generic;
 using CineQuest.UI;
 using CineQuest.Video;
 using UnityEngine;
 using UnityEngine.InputSystem;
+using UnityEngine.XR;
 
 namespace CineQuest.XR
 {
@@ -17,10 +19,18 @@ namespace CineQuest.XR
         [SerializeField] StatusHud hud;
         [SerializeField] bool hudVisible = true;
 
-        void Start()
+        readonly Dictionary<ulong, ControllerEdges> _edges = new Dictionary<ulong, ControllerEdges>();
+
+        struct ControllerEdges
         {
-            AutoBind();
+            public bool primary;
+            public bool secondary;
+            public bool menu;
+            public bool grip2;
+            public bool stickClick;
         }
+
+        void Start() => AutoBind();
 
         public void Bind(
             MonitorMenuController menuCtrl,
@@ -47,40 +57,95 @@ namespace CineQuest.XR
 
         void Update()
         {
+            PollKeyboard();
+            PollControllers();
+        }
+
+        void PollKeyboard()
+        {
             var kb = Keyboard.current;
             if (kb == null) return;
 
-            if (kb.mKey.wasPressedThisFrame) menu?.ToggleMenu();
-            if (kb.lKey.wasPressedThisFrame && imageParams != null)
-                imageParams.SetLocked(!imageParams.IsLocked);
-            if (kb.bKey.wasPressedThisFrame && imageParams != null)
-                imageParams.SetBypass(!imageParams.IsBypass);
-            if (kb.tKey.wasPressedThisFrame) theater?.Toggle();
-            if (kb.fKey.wasPressedThisFrame) freeze?.Toggle();
-            if (kb.hKey.wasPressedThisFrame)
-            {
-                hudVisible = !hudVisible;
-                hud?.SetVisible(hudVisible);
-            }
-            if (kb.sKey.wasPressedThisFrame) menu?.SaveLayout();
-            if (kb.oKey.wasPressedThisFrame) menu?.LoadLayout(); // O = open/load layout
+            if (kb.mKey.wasPressedThisFrame) Action_ToggleMenu();
+            if (kb.lKey.wasPressedThisFrame) Action_ToggleLock();
+            if (kb.bKey.wasPressedThisFrame) Action_ToggleBypass();
+            if (kb.tKey.wasPressedThisFrame) Action_ToggleTheater();
+            if (kb.fKey.wasPressedThisFrame) Action_ToggleFreeze();
+            if (kb.hKey.wasPressedThisFrame) Action_ToggleHud();
+            if (kb.sKey.wasPressedThisFrame) Action_SaveLayout();
+            if (kb.oKey.wasPressedThisFrame) Action_LoadLayout();
         }
 
-        // --- Methods for Meta Interaction SDK / UI buttons ---
+        void PollControllers()
+        {
+            var devices = new List<InputDevice>();
+            InputDevices.GetDevicesAtXRNode(XRNode.RightHand, devices);
+            InputDevices.GetDevicesAtXRNode(XRNode.LeftHand, devices);
+
+            foreach (var device in devices)
+            {
+                if (!device.isValid) continue;
+                ulong id = device.deviceId;
+                _edges.TryGetValue(id, out var prev);
+
+                bool primary = Feature(device, CommonUsages.primaryButton);
+                bool secondary = Feature(device, CommonUsages.secondaryButton);
+                bool menuBtn = Feature(device, CommonUsages.menuButton);
+                bool grip2 = Feature(device, CommonUsages.gripButton) && Feature(device, CommonUsages.triggerButton);
+                bool stick = Feature(device, CommonUsages.primary2DAxisClick);
+
+                // Quest Touch: A / X = primary, B / Y = secondary (varies by hand)
+                if (primary && !prev.primary) Action_ToggleBypass();
+                if (secondary && !prev.secondary) Action_ToggleLock();
+                if (menuBtn && !prev.menu) Action_ToggleMenu();
+                if (stick && !prev.stickClick) Action_ToggleTheater();
+
+                // Left-hand X is often primary on left controller — already mapped to Bypass.
+                // Extra: trigger+grip combo on left only = Freeze (avoid accidental with grab)
+                if (device.characteristics.HasFlag(InputDeviceCharacteristics.Left) && grip2 && !prev.grip2)
+                    Action_ToggleFreeze();
+
+                _edges[id] = new ControllerEdges
+                {
+                    primary = primary,
+                    secondary = secondary,
+                    menu = menuBtn,
+                    grip2 = grip2,
+                    stickClick = stick
+                };
+            }
+        }
+
+        static bool Feature(InputDevice device, InputFeatureUsage<bool> usage)
+        {
+            return device.TryGetFeatureValue(usage, out bool v) && v;
+        }
 
         public void Action_ToggleMenu() => menu?.ToggleMenu();
+
         public void Action_ToggleLock()
         {
-            if (imageParams != null) imageParams.SetLocked(!imageParams.IsLocked);
+            if (imageParams != null)
+            {
+                imageParams.SetLocked(!imageParams.IsLocked);
+                hud?.SetLockLabel(imageParams.IsLocked, imageParams.IsBypass);
+            }
         }
+
         public void Action_ToggleBypass()
         {
-            if (imageParams != null) imageParams.SetBypass(!imageParams.IsBypass);
+            if (imageParams != null)
+            {
+                imageParams.SetBypass(!imageParams.IsBypass);
+                hud?.SetLockLabel(imageParams.IsLocked, imageParams.IsBypass);
+            }
         }
+
         public void Action_ToggleTheater() => theater?.Toggle();
         public void Action_ToggleFreeze() => freeze?.Toggle();
         public void Action_SaveLayout() => menu?.SaveLayout();
         public void Action_LoadLayout() => menu?.LoadLayout();
+
         public void Action_ToggleHud()
         {
             hudVisible = !hudVisible;

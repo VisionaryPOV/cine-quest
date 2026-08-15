@@ -73,8 +73,10 @@ namespace CineQuest.Capture
 
         void OnApplicationPause(bool pause)
         {
-            if (pause) _source?.StopCapture();
-            else _source?.StartCapture();
+            // Do not drop the last frame / stop polling on system overlay.
+            // Resume re-issues StartCapture so USB can re-bind.
+            if (!pause)
+                _source?.StartCapture();
         }
 
         void Update()
@@ -95,29 +97,29 @@ namespace CineQuest.Capture
                 _lastFrameTime = Time.unscaledTime;
             }
 
-            // Signal-lost watchdog while we expect a device stream
-            if (_source.IsRunning && !(Application.isEditor && preferSyntheticInEditor))
+            // Signal-lost / reconnect — do not require IsRunning (StopCapture would disable watchdog)
+            bool hadFrame = _lastTexture != null || _lastFrameTime > 0f;
+            float since = Time.unscaledTime - _lastFrameTime;
+            if (CineQuest.Core.CaptureLifecyclePolicy.ShouldWatchdogReconnect(
+                    _source.IsRunning, hadFrame, since, signalLostSeconds)
+                && !(Application.isEditor && preferSyntheticInEditor))
             {
-                if (Time.unscaledTime - _lastFrameTime > signalLostSeconds && _lastFrameTime > 0f)
-                {
-                    var st = _source.Status;
-                    st.Error = CaptureErrorCode.SignalLost;
-                    st.ErrorMessage = "Signal lost — check HDMI/DP cable and capture card power";
-                    BroadcastStatus(st, force: true);
+                var st = _source.Status;
+                st.Error = CaptureErrorCode.SignalLost;
+                st.ErrorMessage = "Signal lost — check HDMI/DP cable and capture card power";
+                BroadcastStatus(st, force: true);
 
-                    _reconnectTimer += Time.unscaledDeltaTime;
-                    if (_reconnectTimer >= reconnectIntervalSeconds)
-                    {
-                        _reconnectTimer = 0f;
-                        Debug.Log("[CineQuest] Attempting capture reconnect…");
-                        _source.StopCapture();
-                        _source.StartCapture();
-                    }
-                }
-                else
+                _reconnectTimer += Time.unscaledDeltaTime;
+                if (_reconnectTimer >= reconnectIntervalSeconds)
                 {
                     _reconnectTimer = 0f;
+                    Debug.Log("[CineQuest] Attempting capture reconnect…");
+                    _source.StartCapture();
                 }
+            }
+            else
+            {
+                _reconnectTimer = 0f;
             }
 
             // Throttled status (not every frame)
@@ -202,30 +204,11 @@ namespace CineQuest.Capture
             _source.Configure(preferredWidth, preferredHeight, preferredFps);
             _source.StartCapture();
 
-            // Fail-closed: if primary never runs (no texture), fall back to synthetic.
-            if (!_source.IsRunning && chosen != CaptureBackendKind.Synthetic)
-            {
-                // Give UVC a short grace only if start is in progress (waiting for first frame).
-                // UsbVideoNative / missing manager: IsRunning false immediately → fallback now.
-                bool waitingForFirstFrame = _source is Uvc4UnityCaptureSource
-                                            && _source.Status.Error == CaptureErrorCode.NoDevice
-                                            && !string.IsNullOrEmpty(_source.Status.ErrorMessage)
-                                            && _source.Status.ErrorMessage.Contains("Waiting");
-
-                if (!waitingForFirstFrame)
-                {
-                    FallbackToSynthetic(chosen);
-                }
-                // If waiting, Tick will surface timeout; optional delayed fallback:
-                else
-                {
-                    // Keep UVC path; CaptureService Update/watchdog + UVC 3s timeout handle failure.
-                    // For Editor device tests without card, user can switch backend.
-                }
-            }
-
-            // Immediate synthetic fallback when backend unavailable (not "waiting")
-            if (!_source.IsRunning
+            // Editor: synthetic fallback so Play Mode works without a card.
+            // Device: never silently fake a live feed — HUD must show SYNTHETIC or NO DEVICE.
+            bool allowFallback = CineQuest.Core.CaptureLifecyclePolicy.AllowSilentSyntheticFallback(Application.isEditor);
+            if (allowFallback
+                && !_source.IsRunning
                 && chosen != CaptureBackendKind.Synthetic
                 && _source.Status.Error == CaptureErrorCode.BackendUnavailable)
             {
@@ -234,7 +217,8 @@ namespace CineQuest.Capture
 
             _lastFrameTime = Time.unscaledTime;
             BroadcastStatus(_source.Status, force: true);
-            Debug.Log($"[CineQuest] Capture backend: {chosen} running={_source.IsRunning} err={_source.Status.Error}");
+            string srcName = _source.Status.DeviceName ?? _source.GetType().Name;
+            Debug.Log($"[CineQuest] Capture backend chosen={chosen} source={srcName} running={_source.IsRunning} err={_source.Status.Error}");
         }
 
         void FallbackToSynthetic(CaptureBackendKind failed)
