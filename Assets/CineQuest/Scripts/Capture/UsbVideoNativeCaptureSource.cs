@@ -46,6 +46,15 @@ namespace CineQuest.Capture
 
         public void Tick() { }
 
+        public void ApplyWatchdogSignalLost(string message)
+        {
+            _status.Error = CaptureErrorCode.SignalLost;
+            _status.IsStreaming = false;
+            _status.ErrorMessage = message;
+            _status.MeasuredFps = 0f;
+            _events.RaiseStatus(_status);
+        }
+
         public void Dispose() { }
 
         /// <summary>

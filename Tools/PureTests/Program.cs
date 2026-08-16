@@ -282,6 +282,22 @@ static class Program
         Assert(!CaptureLifecyclePolicy.HadRealFrame(true, true), "create stamp is not a real frame");
         Assert(!CaptureLifecyclePolicy.ShouldWarnUsbSpeed(24f, 24f, 1920, 1080), "24fps camera not USB warn");
         Assert(CaptureLifecyclePolicy.ShouldWarnUsbSpeed(59f, 30f, 1920, 1080), "fps collapse warns");
+        Assert(!CaptureLifecyclePolicy.ShouldCountFpsSample(false), "stale tex no fps tick");
+        Assert(CaptureLifecyclePolicy.ShouldCountFpsSample(true), "gen bump counts fps");
+        Assert(!CaptureLifecyclePolicy.ShouldClearSignalLost(false), "stale keeps SignalLost");
+        Assert(CaptureLifecyclePolicy.ShouldClearSignalLost(true), "new frame clears SignalLost");
+        Assert(CaptureLifecyclePolicy.PublishedAsSignalLost(true, false), "broadcast cannot be healthier than watchdog");
+        Assert(!CaptureLifecyclePolicy.PublishedAsSignalLost(true, true), "new frame may clear");
+        Assert(!CaptureLifecyclePolicy.PublishedIsStreaming(true, true, false), "latched not streaming");
+        Assert(CaptureLifecyclePolicy.PublishedIsStreaming(true, false, false), "healthy stays streaming");
+        Assert(!CaptureLifecyclePolicy.ShouldSampleAsExternalOes(true, true), "normalized RT never OES");
+        Assert(CaptureLifecyclePolicy.ShouldSampleAsExternalOes(true, false), "raw Android CurrentFrame may OES");
+        Assert(!CaptureLifecyclePolicy.ShouldSampleAsExternalOes(false, false), "editor never OES");
+        Assert(!CaptureLifecyclePolicy.ShouldBlitWithExternalOes(true, false, true, false), "RT source 2D blit");
+        Assert(!CaptureLifecyclePolicy.ShouldBlitWithExternalOes(true, false, false, true), "readable Texture2D 2D blit");
+        Assert(CaptureLifecyclePolicy.ShouldBlitWithExternalOes(true, false, false, false), "external Android OES blit");
+        Assert(!CaptureLifecyclePolicy.ShouldBlitWithExternalOes(true, true, false, false), "MarkOesFailed stays 2D");
+        Assert(!CaptureLifecyclePolicy.ShouldBlitWithExternalOes(false, false, false, false), "editor blit is 2D");
     }
 
     static void Assert(bool condition, string name)

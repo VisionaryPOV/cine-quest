@@ -37,6 +37,7 @@ namespace CineQuest.Capture
         AudioClip _audioClip;
         int _frameGeneration;
         float _peakFps;
+        bool _watchdogSignalLost;
 
         readonly object _injectLock = new object();
         Texture _pendingInjectTex;
@@ -135,6 +136,7 @@ namespace CineQuest.Capture
 
         public void Tick()
         {
+            int genBefore = _frameGeneration;
             ApplyPendingInject();
 
             if (!_startRequested && !_running) return;
@@ -171,7 +173,9 @@ namespace CineQuest.Capture
 
                 if (_frame == null) return;
 
-                _fpsCount++;
+                bool genAdvanced = _frameGeneration != genBefore;
+                if (Core.CaptureLifecyclePolicy.ShouldCountFpsSample(genAdvanced))
+                    _fpsCount++;
                 _fpsWindow += Time.unscaledDeltaTime;
                 if (_fpsWindow >= 0.5f)
                 {
@@ -180,12 +184,24 @@ namespace CineQuest.Capture
                     _fpsWindow = 0f;
                 }
 
-                _status.IsStreaming = true;
+                if (Core.CaptureLifecyclePolicy.ShouldClearSignalLost(genAdvanced))
+                    _watchdogSignalLost = false;
+
                 _status.Width = _frame.width;
                 _status.Height = _frame.height;
                 _status.MeasuredFps = _measuredFps;
                 _status.EstimatedLatencyMs = EstimateLatencyMs(_status.Width, _status.Height, _status.UsbSpeed);
                 _status.DeviceName = "UVC4Unity";
+
+                if (Core.CaptureLifecyclePolicy.PublishedAsSignalLost(_watchdogSignalLost, genAdvanced))
+                {
+                    _status.Error = CaptureErrorCode.SignalLost;
+                    _status.IsStreaming = false;
+                    _events.RaiseStatus(_status);
+                    return;
+                }
+
+                _status.IsStreaming = true;
 
                 if (_measuredFps > _peakFps) _peakFps = _measuredFps;
 
@@ -209,6 +225,16 @@ namespace CineQuest.Capture
             {
                 SetError(CaptureErrorCode.InternalError, ex.Message);
             }
+        }
+
+        public void ApplyWatchdogSignalLost(string message)
+        {
+            _watchdogSignalLost = true;
+            _status.Error = CaptureErrorCode.SignalLost;
+            _status.IsStreaming = false;
+            _status.ErrorMessage = message;
+            _status.MeasuredFps = 0f;
+            _events.RaiseStatus(_status);
         }
 
         public void StartAudio()

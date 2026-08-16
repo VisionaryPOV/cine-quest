@@ -46,6 +46,12 @@ namespace CineQuest.Capture
         /// (WebCamTexture, some JNI bridges) update here. Compute-heavy work is forbidden.
         /// </summary>
         void Tick();
+
+        /// <summary>
+        /// Latch SignalLost onto the source's own status (CaptureStatus is a struct).
+        /// Tick must not clear this until FrameGeneration advances.
+        /// </summary>
+        void ApplyWatchdogSignalLost(string message);
     }
 
     /// <summary>Optional USB audio class path from the same capture card.</summary>

@@ -1,5 +1,5 @@
 // Cine Quest — Copy live UVC (possibly External OES) into one ARGB32 RT.
-// Tries OES blit on Android, then falls back to 2D if the copy is empty.
+// OES blit only for non-readable Android sources; RT / readable Texture2D blit as 2D.
 
 using UnityEngine;
 
@@ -40,17 +40,21 @@ namespace CineQuest.Capture
                 if (sh != null) _blitMat = new Material(sh);
             }
 
+            bool android =
 #if UNITY_ANDROID && !UNITY_EDITOR
-            if (_blitMat != null && !_oesFailed)
-            {
-                _blitMat.EnableKeyword("CQ_EXTERNAL_OES");
-                Graphics.Blit(source, _rgb, _blitMat);
-                return;
-            }
+                true;
+#else
+                false;
 #endif
+            bool readable2d = source is Texture2D t2d && t2d.isReadable;
+            bool isRt = source is RenderTexture;
+            bool useOes = Core.CaptureLifecyclePolicy.ShouldBlitWithExternalOes(
+                android, _oesFailed, isRt, readable2d);
+
             if (_blitMat != null)
             {
-                _blitMat.DisableKeyword("CQ_EXTERNAL_OES");
+                if (useOes) _blitMat.EnableKeyword("CQ_EXTERNAL_OES");
+                else _blitMat.DisableKeyword("CQ_EXTERNAL_OES");
                 Graphics.Blit(source, _rgb, _blitMat);
             }
             else

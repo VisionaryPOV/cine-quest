@@ -92,6 +92,10 @@ def main() -> int:
     for name in ("Neutral Lock", "Iris Evaluation", "Lighting Balance", "Skin Tone Check", "Reference Bypass"):
         check(f"Preset '{name}'", name in presets)
     check("RuntimeSceneBuilder", exists("Assets/CineQuest/Scripts/App/RuntimeSceneBuilder.cs"))
+    builder = read("Assets/CineQuest/Scripts/App/RuntimeSceneBuilder.cs")
+    check("Tally not parented under overlay go", 'EnsureChild(go, "Tally")' not in builder)
+    check("Tally sibling of overlay", 'EnsureChild(panelGo, "Tally")' in builder)
+    check("Tally has own CanvasGroup", "BuildTallyStrip" in builder)
     hud = read("Assets/CineQuest/Scripts/UI/StatusHud.cs")
     for field in ("resolution", "fps", "usb", "latency", "format", "battery", "warning"):
         check(f"HUD field mention '{field}'", field.lower() in hud.lower())

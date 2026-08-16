@@ -113,14 +113,14 @@ namespace CineQuest.Capture
             }
 
             float since = _hadRealFrame ? Time.unscaledTime - _lastFrameTime : 0f;
-            if (CineQuest.Core.CaptureLifecyclePolicy.ShouldWatchdogReconnect(
+            bool watchdog = CineQuest.Core.CaptureLifecyclePolicy.ShouldWatchdogReconnect(
                     _source.IsRunning, _hadRealFrame, since, signalLostSeconds)
-                && !(Application.isEditor && preferSyntheticInEditor))
+                && !(Application.isEditor && preferSyntheticInEditor);
+            if (watchdog)
             {
-                var st = _source.Status;
-                st.Error = CaptureErrorCode.SignalLost;
-                st.ErrorMessage = "Signal lost — check HDMI/DP cable and capture card power";
-                BroadcastStatus(st, force: true);
+                _source.ApplyWatchdogSignalLost(
+                    "Signal lost — check HDMI/DP cable and capture card power");
+                BroadcastStatus(_source.Status, force: true);
 
                 _reconnectTimer += Time.unscaledDeltaTime;
                 if (_reconnectTimer >= reconnectIntervalSeconds)

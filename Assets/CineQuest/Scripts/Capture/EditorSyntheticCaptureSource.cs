@@ -88,8 +88,20 @@ namespace CineQuest.Capture
         public void StopCapture()
         {
             _running = false;
-            Status = BuildStatus();
-            Status.IsStreaming = false;
+            var stopped = BuildStatus();
+            stopped.IsStreaming = false;
+            Status = stopped;
+            _events.RaiseStatus(Status);
+        }
+
+        public void ApplyWatchdogSignalLost(string message)
+        {
+            var s = Status;
+            s.Error = CaptureErrorCode.SignalLost;
+            s.IsStreaming = false;
+            s.ErrorMessage = message;
+            s.MeasuredFps = 0f;
+            Status = s;
             _events.RaiseStatus(Status);
         }
 

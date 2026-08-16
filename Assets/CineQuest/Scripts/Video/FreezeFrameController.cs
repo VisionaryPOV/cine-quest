@@ -18,7 +18,7 @@ namespace CineQuest.Video
         public bool IsFrozen => _frozen;
         public Texture AnalysisTexture => _frozen && _freezeRt != null
             ? _freezeRt
-            : (captureService != null ? captureService.CurrentFrame : null);
+            : (captureService != null ? (captureService.DisplayFrame ?? captureService.CurrentFrame) : null);
 
         public event System.Action<bool> FreezeChanged;
 
@@ -73,7 +73,9 @@ namespace CineQuest.Video
             if (freezeAffectsDisplay)
             {
                 if (videoRenderer == null) videoRenderer = GetComponent<LockedVideoRenderer>();
-                var live = captureService != null ? captureService.CurrentFrame : null;
+                var live = captureService != null
+                    ? (captureService.DisplayFrame ?? captureService.CurrentFrame)
+                    : null;
                 videoRenderer?.SetDisplayFrozen(false, live);
             }
             FreezeChanged?.Invoke(false);

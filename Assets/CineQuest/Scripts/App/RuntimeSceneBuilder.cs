@@ -97,8 +97,9 @@ namespace CineQuest.App
             fcMr.enabled = false;
             var fc = fcGo.GetComponent<FalseColorController>() ?? fcGo.AddComponent<FalseColorController>();
 
-            // Video status overlay (world canvas on panel)
-            var statusOverlay = BuildVideoStatusOverlay(panelGo, capture);
+            // Video status overlay (world canvas on panel) + sibling tally (must not fade with overlay)
+            BuildVideoStatusOverlay(panelGo, capture);
+            BuildTallyStrip(panelGo, capture, imgCtrl, freeze);
 
             // Theater
             var theaterGo = EnsureChild(root, "TheaterMode");
@@ -366,8 +367,6 @@ namespace CineQuest.App
                 es.AddComponent<UnityEngine.InputSystem.UI.InputSystemUIInputModule>();
             }
 
-            _ = statusOverlay;
-
             Debug.Log("[CineQuest] RuntimeSceneBuilder complete. Editor: synthetic bars. Device: import UVC plugin + Meta XR ray UI.");
         }
 
@@ -404,15 +403,39 @@ namespace CineQuest.App
             var overlay = go.GetComponent<VideoStatusOverlay>() ?? go.AddComponent<VideoStatusOverlay>();
             overlay.Bind(capture, msg, bg, group);
 
-            var tallyGo = EnsureChild(go, "Tally");
-            var tallyBg = tallyGo.GetComponent<Image>() ?? tallyGo.AddComponent<Image>();
-            var tallyRt = tallyGo.GetComponent<RectTransform>();
+            return overlay;
+        }
+
+        static MonitorTallyStrip BuildTallyStrip(
+            GameObject panelGo,
+            CaptureService capture,
+            ImageParameterController image,
+            FreezeFrameController freeze)
+        {
+            var go = EnsureChild(panelGo, "Tally");
+            go.transform.localPosition = new Vector3(0, 0, -0.003f);
+            go.transform.localEulerAngles = new Vector3(0f, 180f, 0f);
+            go.transform.localScale = Vector3.one * 0.001f;
+
+            var canvas = go.GetComponent<Canvas>() ?? go.AddComponent<Canvas>();
+            canvas.renderMode = RenderMode.WorldSpace;
+            var rt = go.GetComponent<RectTransform>();
+            rt.sizeDelta = new Vector2(1600, 900);
+
+            var group = go.GetComponent<CanvasGroup>() ?? go.AddComponent<CanvasGroup>();
+            group.alpha = 1f;
+            group.blocksRaycasts = false;
+            group.interactable = false;
+
+            var barGo = EnsureChild(go, "TallyBar");
+            var tallyBg = barGo.GetComponent<Image>() ?? barGo.AddComponent<Image>();
+            var tallyRt = barGo.GetComponent<RectTransform>();
             tallyRt.anchorMin = new Vector2(0f, 1f);
             tallyRt.anchorMax = new Vector2(1f, 1f);
             tallyRt.pivot = new Vector2(0.5f, 1f);
             tallyRt.anchoredPosition = Vector2.zero;
             tallyRt.sizeDelta = new Vector2(0f, 72f);
-            var tallyLabel = RuntimeUiFactory.CreateLabel(tallyGo.transform, "TallyText", "BYPASS  ·  —",
+            var tallyLabel = RuntimeUiFactory.CreateLabel(barGo.transform, "TallyText", "BYPASS  ·  —",
                 Vector2.zero, new Vector2(1500, 64), 28, TextAnchor.MiddleLeft, Color.white);
             var trt = tallyLabel.rectTransform;
             trt.anchorMin = Vector2.zero;
@@ -420,10 +443,8 @@ namespace CineQuest.App
             trt.offsetMin = new Vector2(24, 0);
             trt.offsetMax = new Vector2(-24, 0);
             var tally = go.GetComponent<MonitorTallyStrip>() ?? go.AddComponent<MonitorTallyStrip>();
-            tally.Bind(capture, FindFirstObjectByType<ImageParameterController>(),
-                FindFirstObjectByType<FreezeFrameController>(), tallyLabel, tallyBg);
-
-            return overlay;
+            tally.Bind(capture, image, freeze, tallyLabel, tallyBg);
+            return tally;
         }
 
         static GameObject CreateScopePanel(GameObject parent, string name, Vector3 pos, ScopeType type)

@@ -19,13 +19,8 @@ namespace CineQuest.Video
         [SerializeField] Material lockedVideoMaterial;
         [SerializeField] bool createMaterialInstance = true;
         [SerializeField] bool flipY;
-        [Tooltip("Enable GL_TEXTURE_EXTERNAL_OES sampling (many Android UVC plugins).")]
-        [SerializeField] bool useExternalOes =
-#if UNITY_ANDROID && !UNITY_EDITOR
-            true;
-#else
-            false;
-#endif
+        [Tooltip("Enable GL_TEXTURE_EXTERNAL_OES only when binding raw Android CurrentFrame. DisplayFrame and freeze RTs are 2D.")]
+        [SerializeField] bool useExternalOes;
 
         Renderer _renderer;
         Material _mat;
@@ -72,11 +67,8 @@ namespace CineQuest.Video
         public void SetDisplayFrozen(bool frozen, Texture freezeOrLiveTexture)
         {
             _displayFrozen = frozen;
-            if (freezeOrLiveTexture != null && _mat != null)
-            {
-                _bound = freezeOrLiveTexture;
-                _mat.SetTexture(MainTexId, freezeOrLiveTexture);
-            }
+            if (freezeOrLiveTexture != null)
+                BindTexture(freezeOrLiveTexture);
         }
 
         void Awake()
@@ -115,8 +107,9 @@ namespace CineQuest.Video
             if (captureService != null)
             {
                 captureService.OnFrameChanged += OnFrame;
-                if (DisplayFreezePolicy.ShouldBindLiveFrame(_displayFrozen) && captureService.CurrentFrame != null)
-                    OnFrame(captureService.CurrentFrame);
+                var first = captureService.DisplayFrame ?? captureService.CurrentFrame;
+                if (DisplayFreezePolicy.ShouldBindLiveFrame(_displayFrozen) && first != null)
+                    OnFrame(first);
             }
         }
 
@@ -144,7 +137,7 @@ namespace CineQuest.Video
             {
                 var t = captureService.DisplayFrame ?? captureService.CurrentFrame;
                 if (t != null && t != _bound)
-                    OnFrame(t);
+                    BindTexture(t);
             }
 
             parameterController?.Push();
@@ -157,12 +150,26 @@ namespace CineQuest.Video
             bool frozen = _displayFrozen || (freezeFrame != null && freezeFrame.IsFrozen);
             if (!DisplayFreezePolicy.ShouldBindLiveFrame(frozen))
                 return;
+            BindTexture(tex);
+        }
+
+        void BindTexture(Texture tex)
+        {
             if (_mat == null || tex == null) return;
             _bound = tex;
             _mat.SetTexture(MainTexId, tex);
 
-            // Heuristic: Texture2D.CreateExternalTexture often reports dimension Tex2D but is OES on device.
-            // Integrators can force via SetUseExternalOes(true).
+            bool is2dRgb = tex is RenderTexture
+                || (captureService != null
+                    && captureService.DisplayFrame != null
+                    && tex == captureService.DisplayFrame);
+            bool android =
+#if UNITY_ANDROID && !UNITY_EDITOR
+                true;
+#else
+                false;
+#endif
+            SetUseExternalOes(CaptureLifecyclePolicy.ShouldSampleAsExternalOes(android, is2dRgb));
         }
 
         public void SetFlipY(bool flip)
