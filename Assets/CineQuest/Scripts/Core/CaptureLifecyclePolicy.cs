@@ -6,19 +6,26 @@ namespace CineQuest.Core
     {
         public const float FirstFrameTimeoutSeconds = 3f;
 
-        /// <summary>After timeout, keep polling for frames (do not disable Tick).</summary>
         public static bool ShouldKeepPollingAfterTimeout => true;
 
+        public static bool AllowSilentSyntheticFallback(bool isEditor) => isEditor;
+
         /// <summary>
-        /// Silent synthetic fallback hides a missing live path on device.
-        /// Editor may fallback; device should stay on UVC and show No Device.
+        /// Advance "last live frame" only on a new raise (generation bump or new texture object).
+        /// A leftover Texture reference is not a live feed.
         /// </summary>
-        public static bool AllowSilentSyntheticFallback(bool isEditor)
+        public static bool ShouldAdvanceLastFrameTime(bool textureObjectChanged, bool frameGenerationChanged)
         {
-            return isEditor;
+            return textureObjectChanged || frameGenerationChanged;
         }
 
-        /// <summary>Watchdog may reconnect when we expected a stream but have none.</summary>
+        /// <summary>hadFrameOnce must be a real raise, not backend-create time.</summary>
+        public static bool HadRealFrame(bool lastTextureAssigned, bool lastFrameTimeWasSetAtCreate)
+        {
+            if (lastFrameTimeWasSetAtCreate) return false;
+            return lastTextureAssigned;
+        }
+
         public static bool ShouldWatchdogReconnect(bool isStreaming, bool hadFrameOnce, float secondsSinceLastFrame, float lostSeconds)
         {
             if (!hadFrameOnce) return false;
@@ -30,6 +37,15 @@ namespace CineQuest.Core
         {
             if (string.IsNullOrEmpty(deviceName)) return false;
             return deviceName.StartsWith("Synthetic");
+        }
+
+        /// <summary>USB Hi-Speed warning only if fps collapsed from a previously high rate.</summary>
+        public static bool ShouldWarnUsbSpeed(float previousFps, float currentFps, int width, int height)
+        {
+            if (width < 1920 || height < 1080) return false;
+            if (currentFps <= 0f) return false;
+            if (previousFps >= 50f && currentFps < 40f) return true;
+            return false;
         }
     }
 }

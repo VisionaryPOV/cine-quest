@@ -35,7 +35,13 @@ namespace CineQuest.Video
             string msg = null;
             Color bg = new Color(0.05f, 0.05f, 0.07f, 0.88f);
 
-            if (!st.IsStreaming || st.Error != CaptureErrorCode.None)
+            bool waiting = captureService != null && captureService.WaitingForFirstFrame;
+            if (waiting)
+            {
+                msg = "WAITING FOR LIVE VIDEO\nClose HDMI Link · Allow USB for Cine Quest · same capture card";
+                bg = new Color(0.05f, 0.07f, 0.1f, 0.92f);
+            }
+            else if (!st.IsStreaming || st.Error != CaptureErrorCode.None)
             {
                 switch (st.Error)
                 {
@@ -50,8 +56,8 @@ namespace CineQuest.Video
                         msg = null;
                         break;
                     case CaptureErrorCode.HdcpBlanked:
-                        msg = "HDCP / PROTECTED SOURCE\nSignal is encrypted or blanked — use an unprotected feed";
-                        bg = new Color(0.25f, 0.05f, 0.05f, 0.92f);
+                        // Not assigned by capture; reserved. Do not claim HDCP detection.
+                        msg = null;
                         break;
                     case CaptureErrorCode.UnsupportedResolution:
                         msg = "UNSUPPORTED RESOLUTION\nPrefer 1080p60 from the camera/monitor output";

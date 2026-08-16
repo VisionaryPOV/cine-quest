@@ -41,13 +41,19 @@ namespace CineQuest.Capture
         float _reconnectTimer;
         float _lastStatusBroadcast;
         Texture _lastTexture;
+        int _lastFrameGeneration = -1;
+        bool _hadRealFrame;
         CaptureStatus _lastBroadcastStatus;
         Action<CaptureStatus> _statusHandler;
         Action<Texture> _frameHandler;
+        VideoFrameNormalizer _normalizer;
 
         public IVideoCaptureSource Source => _source;
         public CaptureStatus Status => _source?.Status ?? CaptureStatus.Empty;
         public Texture CurrentFrame => _source?.CurrentFrame;
+        /// <summary>2D ARGB copy for freeze/scopes (safe to Blit). May be null until first normalize.</summary>
+        public Texture DisplayFrame => _normalizer != null ? _normalizer.RgbFrame : CurrentFrame;
+        public bool WaitingForFirstFrame => !_hadRealFrame && !CineQuest.Core.CaptureLifecyclePolicy.IsSyntheticDeviceName(Status.DeviceName);
         public CaptureEvents Events => _source?.Events;
 
         public event Action<CaptureStatus> OnStatusChanged;
@@ -65,18 +71,17 @@ namespace CineQuest.Capture
             CreateBackend();
         }
 
-        void OnDestroy()
-        {
-            if (Instance == this) Instance = null;
-            TeardownSource();
-        }
-
         void OnApplicationPause(bool pause)
         {
-            // Do not drop the last frame / stop polling on system overlay.
-            // Resume re-issues StartCapture so USB can re-bind.
-            if (!pause)
+            if (pause)
+            {
+                // Release USB so HDMI Link can reclaim the card. Do not wipe last displayed texture.
+                _source?.StopCapture();
+            }
+            else
+            {
                 _source?.StartCapture();
+            }
         }
 
         void Update()
@@ -86,22 +91,27 @@ namespace CineQuest.Capture
             _source.Tick();
 
             var tex = _source.CurrentFrame;
-            if (tex != null && tex != _lastTexture)
+            int gen = _source.FrameGeneration;
+            bool texChanged = tex != null && tex != _lastTexture;
+            bool genChanged = gen != _lastFrameGeneration && gen > 0;
+            if (CineQuest.Core.CaptureLifecyclePolicy.ShouldAdvanceLastFrameTime(texChanged, genChanged))
             {
                 _lastTexture = tex;
+                _lastFrameGeneration = gen;
                 _lastFrameTime = Time.unscaledTime;
-                OnFrameChanged?.Invoke(tex);
-            }
-            else if (tex != null)
-            {
-                _lastFrameTime = Time.unscaledTime;
+                _hadRealFrame = true;
+                if (tex != null)
+                {
+                    _normalizer?.Normalize(tex);
+                    OnFrameChanged?.Invoke(_normalizer != null && _normalizer.RgbFrame != null
+                        ? _normalizer.RgbFrame
+                        : tex);
+                }
             }
 
-            // Signal-lost / reconnect — do not require IsRunning (StopCapture would disable watchdog)
-            bool hadFrame = _lastTexture != null || _lastFrameTime > 0f;
-            float since = Time.unscaledTime - _lastFrameTime;
+            float since = _hadRealFrame ? Time.unscaledTime - _lastFrameTime : 0f;
             if (CineQuest.Core.CaptureLifecyclePolicy.ShouldWatchdogReconnect(
-                    _source.IsRunning, hadFrame, since, signalLostSeconds)
+                    _source.IsRunning, _hadRealFrame, since, signalLostSeconds)
                 && !(Application.isEditor && preferSyntheticInEditor))
             {
                 var st = _source.Status;
@@ -200,6 +210,13 @@ namespace CineQuest.Capture
                     break;
             }
 
+            if (_normalizer == null)
+                _normalizer = new VideoFrameNormalizer();
+            _hadRealFrame = false;
+            _lastTexture = null;
+            _lastFrameGeneration = -1;
+            _lastFrameTime = 0f;
+
             AttachSourceEvents();
             _source.Configure(preferredWidth, preferredHeight, preferredFps);
             _source.StartCapture();
@@ -215,7 +232,6 @@ namespace CineQuest.Capture
                 FallbackToSynthetic(chosen);
             }
 
-            _lastFrameTime = Time.unscaledTime;
             BroadcastStatus(_source.Status, force: true);
             string srcName = _source.Status.DeviceName ?? _source.GetType().Name;
             Debug.Log($"[CineQuest] Capture backend chosen={chosen} source={srcName} running={_source.IsRunning} err={_source.Status.Error}");
@@ -242,9 +258,19 @@ namespace CineQuest.Capture
             _statusHandler = s => BroadcastStatus(s, force: true);
             _frameHandler = t =>
             {
+                int gen = _source != null ? _source.FrameGeneration : 0;
+                bool texChanged = t != null && t != _lastTexture;
+                bool genChanged = gen != _lastFrameGeneration && gen > 0;
+                if (!CineQuest.Core.CaptureLifecyclePolicy.ShouldAdvanceLastFrameTime(texChanged, genChanged))
+                    return;
                 _lastTexture = t;
+                _lastFrameGeneration = gen;
                 _lastFrameTime = Time.unscaledTime;
-                OnFrameChanged?.Invoke(t);
+                _hadRealFrame = true;
+                _normalizer?.Normalize(t);
+                OnFrameChanged?.Invoke(_normalizer != null && _normalizer.RgbFrame != null
+                    ? _normalizer.RgbFrame
+                    : t);
             };
             _source.Events.StatusChanged += _statusHandler;
             _source.Events.FrameTextureChanged += _frameHandler;
@@ -278,6 +304,15 @@ namespace CineQuest.Capture
             _audio = null;
             _source = null;
             _lastTexture = null;
+            _hadRealFrame = false;
+        }
+
+        void OnDestroy()
+        {
+            if (Instance == this) Instance = null;
+            TeardownSource();
+            _normalizer?.Dispose();
+            _normalizer = null;
         }
 
         public void StartAudioIfAvailable()

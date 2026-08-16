@@ -23,6 +23,12 @@ namespace CineQuest.Capture
         /// <summary>Latest status snapshot.</summary>
         CaptureStatus Status { get; }
 
+        /// <summary>
+        /// Increments when the backend believes a new frame arrived (InjectFrame / new texture).
+        /// Same Texture object without a generation bump is not a live frame.
+        /// </summary>
+        int FrameGeneration { get; }
+
         /// <summary>Shared event hub (status / errors / texture swaps).</summary>
         CaptureEvents Events { get; }
 

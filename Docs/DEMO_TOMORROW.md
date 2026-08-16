@@ -23,11 +23,13 @@ If APK is not ready: still run **Phase 1 synthetic** and explain live path statu
 
 | Control | Action |
 |---------|--------|
-| **A** (right primary) | Toggle **Bypass** |
-| **B** (right secondary) | Toggle **Lock** |
-| **Menu / Y** | Show/hide operator sheet |
-| **Stick click** | Theater / Passthrough |
+| **Right A** | Toggle **Bypass** |
+| **Right B** | Toggle **Lock** |
+| **Left Y** | Show/hide operator sheet |
+| **Right stick click** | Theater / Passthrough |
 | **Left grip + trigger** | Freeze |
+
+Do **not** press the Horizon **Menu** button (OS overlay). The in-headset HUD always shows `A=Bypass B=Lock L-Y=Menu`.
 
 App boots in **Reference Bypass**, menu **hidden**. HUD says **SYNTHETIC — NOT CAMERA** if the APK is not on a live card.
 

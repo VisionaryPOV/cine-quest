@@ -75,7 +75,7 @@ namespace CineQuest.UI
             Set(resolutionText, st.ResolutionLabel);
             Set(fpsText, st.MeasuredFps > 0 ? $"{st.MeasuredFps:0.0} fps" : "— fps");
             Set(usbText, st.UsbSpeedLabel);
-            Set(latencyText, $"~{st.EstimatedLatencyMs:0} ms");
+            Set(latencyText, st.EstimatedLatencyMs > 0 ? $"est. {st.EstimatedLatencyMs:0} ms" : "est. —");
             Set(formatText, st.ColorFormat.ToString());
 
             _batteryTimer -= Time.unscaledDeltaTime;
@@ -101,19 +101,22 @@ namespace CineQuest.UI
             SetLockLabel(locked, bypass, frozen);
         }
 
-        static string BuildWarning(CaptureStatus st)
+        string BuildWarning(CaptureStatus st)
         {
+            const string hints = "  A=Bypass  B=Lock  L-Y=Menu";
             if (CaptureLifecyclePolicy.IsSyntheticDeviceName(st.DeviceName))
-                return "SYNTHETIC — NOT CAMERA  (A=Bypass  B=Lock  Menu=UI)";
+                return "SYNTHETIC — NOT CAMERA" + hints;
+            if (captureService != null && captureService.WaitingForFirstFrame)
+                return "WAITING FOR LIVE VIDEO — close HDMI Link, allow USB" + hints;
 
             switch (st.Error)
             {
                 case CaptureErrorCode.NoDevice:
-                    return "NO DEVICE — close HDMI Link, allow USB, same capture card";
+                    return "NO DEVICE — close HDMI Link, allow USB, same capture card" + hints;
                 case CaptureErrorCode.UsbSpeedWarning:
-                    return "USB HI-SPEED — prefer SuperSpeed cable/card";
+                    return "INFERRED USB2 (fps dropped) — check SuperSpeed cable" + hints;
                 case CaptureErrorCode.HdcpBlanked:
-                    return "SIGNAL BLANK — often HDCP/protected HDMI (app cannot read HDCP flags)";
+                    return null; // never claimed; enum reserved
                 case CaptureErrorCode.PermissionDenied:
                     return "USB PERMISSION DENIED";
                 case CaptureErrorCode.SignalLost:

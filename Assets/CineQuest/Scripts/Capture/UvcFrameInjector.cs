@@ -1,19 +1,13 @@
 // Cine Quest — Drop this on a GameObject next to your UVC4Unity preview component.
-// Call NotifyTexture each frame (or on texture change) for a known-good path that bypasses reflection guesses.
+// NotifyTexture is safe from a USB/Java thread: it queues; Tick applies on the main thread.
 
 using UnityEngine;
 
 namespace CineQuest.Capture
 {
-    /// <summary>
-    /// Explicit handoff from a third-party UVC MonoBehaviour into CaptureService.
-    /// Prefer this over reflection when your plugin API differs from Uvc4UnityCaptureSource guesses.
-    /// </summary>
     public sealed class UvcFrameInjector : MonoBehaviour
     {
         [SerializeField] CaptureService captureService;
-        [SerializeField] bool setOesOnLockedVideo;
-        [SerializeField] Video.LockedVideoRenderer lockedVideo;
 
         void Start()
         {
@@ -21,7 +15,7 @@ namespace CineQuest.Capture
                 captureService = CaptureService.Instance;
         }
 
-        /// <summary>Push a decoded Unity Texture into the active UVC adapter if present.</summary>
+        /// <summary>Queue a decoded Unity Texture. Does not SetBackend (would tear down mid-frame).</summary>
         public void NotifyTexture(Texture texture, int width = 0, int height = 0, float fps = 0f)
         {
             if (texture == null) return;
@@ -46,21 +40,10 @@ namespace CineQuest.Capture
             if (captureService?.Source is Uvc4UnityCaptureSource uvc)
             {
                 uvc.InjectFrame(texture, status);
-            }
-            else
-            {
-                // Force restart with UVC backend so InjectFrame has a home on next frame
-                captureService?.SetBackend(CaptureBackendKind.Uvc4Unity);
-                if (captureService?.Source is Uvc4UnityCaptureSource uvc2)
-                    uvc2.InjectFrame(texture, status);
+                return;
             }
 
-            if (setOesOnLockedVideo)
-            {
-                if (lockedVideo == null)
-                    lockedVideo = FindFirstObjectByType<Video.LockedVideoRenderer>();
-                lockedVideo?.SetUseExternalOes(true);
-            }
+            Debug.LogWarning("[CineQuest] NotifyTexture ignored — UVC backend not active. Do not SetBackend from the notify path.");
         }
     }
 }

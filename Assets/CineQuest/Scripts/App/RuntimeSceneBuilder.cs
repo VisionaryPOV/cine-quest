@@ -269,7 +269,7 @@ namespace CineQuest.App
                 new Vector2(150, 40), () => menu.LoadLayout());
 
             RuntimeUiFactory.CreateLabel(canvasGo.transform, "Help",
-                "Quest: A Bypass · B Lock · Menu toggles this sheet · stick click Theater · L-grip+trigger Freeze\n" +
+                "Quest: A Bypass · B Lock · Left Y menu · stick click Theater · L-grip+trigger Freeze\n" +
                 "Editor: M menu · L lock · B bypass · T theater · F freeze · 4 pulse",
                 new Vector2(0, -280), new Vector2(680, 70), 16, TextAnchor.MiddleCenter,
                 new Color(0.7f, 0.75f, 0.78f));

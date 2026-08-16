@@ -19,6 +19,7 @@ namespace CineQuest.Capture
 
         public bool IsRunning => false;
         public Texture CurrentFrame => null;
+        public int FrameGeneration => 0;
         public CaptureStatus Status => _status;
         public CaptureEvents Events => _events;
 

@@ -274,6 +274,14 @@ static class Program
         Assert(!CaptureLifecyclePolicy.ShouldWatchdogReconnect(true, true, 0.1f, 2f), "fresh stream no reconnect");
         Assert(CaptureLifecyclePolicy.ShouldWatchdogReconnect(false, true, 3f, 2f), "lost after had-frame reconnects");
         Assert(!CaptureLifecyclePolicy.ShouldWatchdogReconnect(false, false, 5f, 2f), "never had frame no reconnect");
+        Assert(!CaptureLifecyclePolicy.ShouldAdvanceLastFrameTime(false, false), "same tex no gen = stale");
+        Assert(CaptureLifecyclePolicy.ShouldAdvanceLastFrameTime(true, false), "new tex object");
+        Assert(CaptureLifecyclePolicy.ShouldAdvanceLastFrameTime(false, true), "generation bump");
+        Assert(!CaptureLifecyclePolicy.HadRealFrame(false, false), "no texture no frame");
+        Assert(CaptureLifecyclePolicy.HadRealFrame(true, false), "texture after raise");
+        Assert(!CaptureLifecyclePolicy.HadRealFrame(true, true), "create stamp is not a real frame");
+        Assert(!CaptureLifecyclePolicy.ShouldWarnUsbSpeed(24f, 24f, 1920, 1080), "24fps camera not USB warn");
+        Assert(CaptureLifecyclePolicy.ShouldWarnUsbSpeed(59f, 30f, 1920, 1080), "fps collapse warns");
     }
 
     static void Assert(bool condition, string name)

@@ -35,10 +35,18 @@ namespace CineQuest.Capture
         bool _pluginPresent;
         bool _audioRunning;
         AudioClip _audioClip;
+        int _frameGeneration;
+        float _peakFps;
+
+        readonly object _injectLock = new object();
+        Texture _pendingInjectTex;
+        CaptureStatus _pendingInjectStatus;
+        bool _pendingInject;
 
         /// <summary>True only when we have an open path that has produced (or injected) a frame.</summary>
         public bool IsRunning => _running && _frame != null;
         public Texture CurrentFrame => _frame;
+        public int FrameGeneration => _frameGeneration;
         public CaptureStatus Status => _status;
         public CaptureEvents Events => _events;
         public bool HasAudio => _audioClip != null;
@@ -120,13 +128,15 @@ namespace CineQuest.Capture
             try { _miStop?.Invoke(_uvcManager, null); } catch { /* ignore */ }
             _startRequested = false;
             _running = false;
-            _frame = null;
+            // Keep last _frame for display; release USB only.
             _status.IsStreaming = false;
             _events.RaiseStatus(_status);
         }
 
         public void Tick()
         {
+            ApplyPendingInject();
+
             if (!_startRequested && !_running) return;
 
             try
@@ -140,7 +150,10 @@ namespace CineQuest.Capture
                         _frame = tex;
                         _running = true;
                         if (isNew)
+                        {
+                            _frameGeneration++;
                             _events.RaiseFrame(_frame);
+                        }
                     }
                 }
 
@@ -174,11 +187,13 @@ namespace CineQuest.Capture
                 _status.EstimatedLatencyMs = EstimateLatencyMs(_status.Width, _status.Height, _status.UsbSpeed);
                 _status.DeviceName = "UVC4Unity";
 
-                if (_status.Width >= 1920 && _status.Height >= 1080 && _measuredFps > 0f && _measuredFps < 45f)
+                if (_measuredFps > _peakFps) _peakFps = _measuredFps;
+
+                if (Core.CaptureLifecyclePolicy.ShouldWarnUsbSpeed(_peakFps, _measuredFps, _status.Width, _status.Height))
                 {
                     _status.UsbSpeed = UsbLinkSpeed.HiSpeed;
                     _status.Error = CaptureErrorCode.UsbSpeedWarning;
-                    _status.ErrorMessage = "Frame rate low — use USB 3 SuperSpeed capture card & cable";
+                    _status.ErrorMessage = "Inferred USB2 (fps dropped from a higher rate) — check SuperSpeed cable";
                 }
                 else
                 {
@@ -214,18 +229,39 @@ namespace CineQuest.Capture
         }
 
         /// <summary>
-        /// Integrators with a known-good UVC MonoBehaviour should call this each frame (or on texture swap).
+        /// Thread-safe queue. Apply happens on the main thread in <see cref="Tick"/>.
         /// </summary>
         public void InjectFrame(Texture texture, CaptureStatus status)
         {
-            _frame = texture;
-            _running = texture != null;
-            _startRequested = texture != null;
-            _status = status;
-            if (texture != null)
+            lock (_injectLock)
             {
+                _pendingInjectTex = texture;
+                _pendingInjectStatus = status;
+                _pendingInject = true;
+            }
+        }
+
+        void ApplyPendingInject()
+        {
+            Texture tex;
+            CaptureStatus st;
+            lock (_injectLock)
+            {
+                if (!_pendingInject) return;
+                tex = _pendingInjectTex;
+                st = _pendingInjectStatus;
+                _pendingInject = false;
+            }
+
+            _frame = tex;
+            _running = tex != null;
+            _startRequested = tex != null;
+            _status = st;
+            if (tex != null)
+            {
+                _frameGeneration++;
                 _status.IsStreaming = true;
-                _events.RaiseFrame(texture);
+                _events.RaiseFrame(tex);
             }
             else
             {

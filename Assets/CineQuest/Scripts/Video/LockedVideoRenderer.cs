@@ -142,7 +142,7 @@ namespace CineQuest.Video
 
             if (captureService != null)
             {
-                var t = captureService.CurrentFrame;
+                var t = captureService.DisplayFrame ?? captureService.CurrentFrame;
                 if (t != null && t != _bound)
                     OnFrame(t);
             }

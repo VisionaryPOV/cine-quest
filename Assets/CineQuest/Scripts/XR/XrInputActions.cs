@@ -1,5 +1,5 @@
-// Cine Quest — Keyboard (Editor) + Quest controller buttons (no rays required).
-// A = Bypass · B = Lock · Menu/Y = menu · X = Freeze · stick click = Theater
+// Cine Quest — Keyboard (Editor) + Quest controllers (no rays, no Horizon Menu).
+// Right A = Bypass · Right B = Lock · Left Y = operator sheet · Left grip+trigger = Freeze · stick click = Theater
 
 using System.Collections.Generic;
 using CineQuest.UI;
@@ -90,26 +90,27 @@ namespace CineQuest.XR
 
                 bool primary = Feature(device, CommonUsages.primaryButton);
                 bool secondary = Feature(device, CommonUsages.secondaryButton);
-                bool menuBtn = Feature(device, CommonUsages.menuButton);
                 bool grip2 = Feature(device, CommonUsages.gripButton) && Feature(device, CommonUsages.triggerButton);
                 bool stick = Feature(device, CommonUsages.primary2DAxisClick);
+                bool left = device.characteristics.HasFlag(InputDeviceCharacteristics.Left);
 
-                // Quest Touch: A / X = primary, B / Y = secondary (varies by hand)
-                if (primary && !prev.primary) Action_ToggleBypass();
-                if (secondary && !prev.secondary) Action_ToggleLock();
-                if (menuBtn && !prev.menu) Action_ToggleMenu();
-                if (stick && !prev.stickClick) Action_ToggleTheater();
-
-                // Left-hand X is often primary on left controller — already mapped to Bypass.
-                // Extra: trigger+grip combo on left only = Freeze (avoid accidental with grab)
-                if (device.characteristics.HasFlag(InputDeviceCharacteristics.Left) && grip2 && !prev.grip2)
-                    Action_ToggleFreeze();
+                // Never bind Horizon's Menu button (drops the user into OS).
+                if (left)
+                {
+                    if (secondary && !prev.secondary) Action_ToggleMenu(); // Left Y
+                    if (grip2 && !prev.grip2) Action_ToggleFreeze();
+                }
+                else
+                {
+                    if (primary && !prev.primary) Action_ToggleBypass();   // Right A
+                    if (secondary && !prev.secondary) Action_ToggleLock(); // Right B
+                    if (stick && !prev.stickClick) Action_ToggleTheater();
+                }
 
                 _edges[id] = new ControllerEdges
                 {
                     primary = primary,
                     secondary = secondary,
-                    menu = menuBtn,
                     grip2 = grip2,
                     stickClick = stick
                 };

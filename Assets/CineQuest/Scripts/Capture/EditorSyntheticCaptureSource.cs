@@ -43,6 +43,7 @@ namespace CineQuest.Capture
 
         public bool IsRunning => _running;
         public Texture CurrentFrame => _texture;
+        public int FrameGeneration { get; private set; }
         public CaptureStatus Status { get; private set; }
         public CaptureEvents Events => _events;
         public SyntheticPattern Pattern
@@ -169,6 +170,7 @@ namespace CineQuest.Capture
 
             _texture.SetPixels32(_pixels);
             _texture.Apply(false, false);
+            FrameGeneration++;
         }
 
         void FillSolid(Color32 c)

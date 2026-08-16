@@ -48,7 +48,9 @@ namespace CineQuest.Video
         public void Freeze()
         {
             if (captureService == null) captureService = CaptureService.Instance;
-            var src = captureService != null ? captureService.CurrentFrame : null;
+            var src = captureService != null
+                ? (captureService.DisplayFrame ?? captureService.CurrentFrame)
+                : null;
             if (src == null) return;
 
             EnsureRt(src.width, src.height);

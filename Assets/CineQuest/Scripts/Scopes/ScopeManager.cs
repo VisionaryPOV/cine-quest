@@ -55,7 +55,7 @@ namespace CineQuest.Scopes
             if (freezeFrame != null && freezeFrame.IsFrozen)
                 src = freezeFrame.AnalysisTexture;
             else if (captureService != null)
-                src = captureService.CurrentFrame;
+                src = captureService.DisplayFrame ?? captureService.CurrentFrame;
 
             if (src == null) return;
             AnalysisSource = src;
