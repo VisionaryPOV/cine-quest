@@ -130,6 +130,7 @@ namespace CineQuest.XR
             {
                 imageParams.SetLocked(!imageParams.IsLocked);
                 hud?.SetLockLabel(imageParams.IsLocked, imageParams.IsBypass);
+                ControllerHaptics.Click();
             }
         }
 
@@ -139,6 +140,7 @@ namespace CineQuest.XR
             {
                 imageParams.SetBypass(!imageParams.IsBypass);
                 hud?.SetLockLabel(imageParams.IsLocked, imageParams.IsBypass);
+                ControllerHaptics.Click();
             }
         }
 

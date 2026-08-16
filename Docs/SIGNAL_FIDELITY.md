@@ -63,7 +63,7 @@ UVC MJPEG/H.264 decode is lossy. Prefer uncompressed or lightly compressed UVC f
 
 ## Scopes vs display grade
 
-Waveform / parade / vectorscope sample the **capture analysis RT** (pre–LockedVideo creative grade). That matches engineering scopes: they show signal, not your monitoring look. Limited-range expand applies on the **display** path by default; scopes see the raw decoded texture unless you pre-process the analysis RT.
+Waveform / parade / vectorscope sample the **capture analysis RT** (pre–LockedVideo creative grade). The waveform axis is **0–100% Rec.709 luma**, stamped **RELATIVE · NOT CALIBRATED IRE**. Do not set iris from the 100 line. Limited-range expand applies on the **display** path; scopes see the decoded texture.
 
 ## Verification procedure
 

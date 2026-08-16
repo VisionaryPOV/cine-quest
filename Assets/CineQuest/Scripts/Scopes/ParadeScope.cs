@@ -31,10 +31,19 @@ namespace CineQuest.Scopes
 
             if (!_kernelsReady)
             {
-                _kClear = cs.FindKernel("Clear");
-                _kAcc = cs.FindKernel("Accumulate");
-                _kRes = cs.FindKernel("Resolve");
-                _kernelsReady = true;
+                try
+                {
+                    _kClear = cs.FindKernel("Clear");
+                    _kAcc = cs.FindKernel("Accumulate");
+                    _kRes = cs.FindKernel("Resolve");
+                    _kernelsReady = true;
+                }
+                catch (System.Exception ex)
+                {
+                    Debug.LogWarning($"[CineQuest] Parade compute unavailable: {ex.Message}");
+                    enabled = false;
+                    return;
+                }
             }
 
             cs.SetInt("_Columns", columns);

@@ -50,6 +50,8 @@ When the plugin UI or API allows format selection:
 
 Reflection against `UVCManager` is best-effort. **Production path:** attach `UvcFrameInjector` and call it from your plugin callback. `NotifyTexture` / `InjectFrame` are **queued** and applied on the Unity main thread in `Tick`. Do **not** call `SetBackend` from the plugin thread.
 
+**Call `NotifyTexture` every video frame.** If the plugin reuses one Texture object and never injects, the wait overlay / watchdog will not see a live generation bump.
+
 ```csharp
 // On your UVC preview component when a new Texture is ready:
 GetComponent<UvcFrameInjector>().NotifyTexture(previewTexture, width, height, fps);

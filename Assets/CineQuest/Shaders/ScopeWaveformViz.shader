@@ -7,8 +7,8 @@ Shader "CineQuest/ScopeWaveformViz"
         [MainTexture] _MainTex ("Scope", 2D) = "black" {}
         _Opacity ("Opacity", Range(0,1)) = 0.95
         _ShowGraticule ("Show Graticule", Float) = 1
-        _LegalLow ("Legal Low IRE", Float) = 0
-        _LegalHigh ("Legal High IRE", Float) = 100
+        _LegalLow ("Legal Low %", Float) = 0
+        _LegalHigh ("Legal High %", Float) = 100
         _Background ("Background", Color) = (0.02, 0.04, 0.03, 0.92)
     }
 
@@ -51,8 +51,8 @@ Shader "CineQuest/ScopeWaveformViz"
 
             float GraticuleLine(float y, float ire, float thickness)
             {
-                // y is 0 at bottom, 1 at top; map IRE 0–100 (extend to 109)
-                float t = ire / 109.0;
+                // y is 0 at bottom, 1 at top; 0–100 is percent of Rec.709 luma (NOT legal IRE)
+                float t = ire / 100.0;
                 return smoothstep(thickness, 0.0, abs(y - t));
             }
 
@@ -68,10 +68,10 @@ Shader "CineQuest/ScopeWaveformViz"
                 {
                     float g = 0;
                     g = max(g, GraticuleLine(uv.y, 0, 0.004));
-                    g = max(g, GraticuleLine(uv.y, 7.5, 0.003));
+                    g = max(g, GraticuleLine(uv.y, 25, 0.002));
                     g = max(g, GraticuleLine(uv.y, 50, 0.003));
+                    g = max(g, GraticuleLine(uv.y, 75, 0.002));
                     g = max(g, GraticuleLine(uv.y, 100, 0.004));
-                    g = max(g, GraticuleLine(uv.y, 109, 0.003));
                     // Legal limits
                     g = max(g, GraticuleLine(uv.y, _LegalLow, 0.002) * 0.6);
                     g = max(g, GraticuleLine(uv.y, _LegalHigh, 0.002) * 0.6);

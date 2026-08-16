@@ -52,7 +52,10 @@ namespace CineQuest.Capture
         public CaptureStatus Status => _source?.Status ?? CaptureStatus.Empty;
         public Texture CurrentFrame => _source?.CurrentFrame;
         /// <summary>2D ARGB copy for freeze/scopes (safe to Blit). May be null until first normalize.</summary>
-        public Texture DisplayFrame => _normalizer != null ? _normalizer.RgbFrame : CurrentFrame;
+        public Texture DisplayFrame =>
+            _normalizer != null && _normalizer.RgbFrame != null
+                ? _normalizer.RgbFrame
+                : CurrentFrame;
         public bool WaitingForFirstFrame => !_hadRealFrame && !CineQuest.Core.CaptureLifecyclePolicy.IsSyntheticDeviceName(Status.DeviceName);
         public CaptureEvents Events => _source?.Events;
 

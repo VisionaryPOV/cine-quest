@@ -33,7 +33,7 @@ Do **not** press the Horizon **Menu** button (OS overlay). The in-headset HUD al
 
 App boots in **Reference Bypass**, menu **hidden**. HUD says **SYNTHETIC — NOT CAMERA** if the APK is not on a live card.
 
-**Do not** use Iris Evaluation / Lighting Balance / Skin Tone for the trust test. Use **REF BYPASS** only. Waveform IRE numbers are **not** legal; judge motion, not the 100 line.
+**Do not** use Iris Evaluation / Lighting Balance / Skin Tone for the trust test. Use **BYPASS** (A). Waveform is **percent luma, not legal IRE** — judge motion, not the 100 line. Tally on the picture reads BYPASS / LOCKED / FROZEN.
 
 **Do not invite the DP** until you have: stereo tracking + bars + **A toggles Bypass** on the headset.
 

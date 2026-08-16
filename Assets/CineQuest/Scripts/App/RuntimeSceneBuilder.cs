@@ -172,23 +172,22 @@ namespace CineQuest.App
             RuntimeUiFactory.CreateLabel(canvasGo.transform, "Title", "CINE QUEST",
                 new Vector2(0, 500), new Vector2(860, 40), 30, TextAnchor.MiddleCenter,
                 new Color(0.75f, 0.9f, 1f));
-            RuntimeUiFactory.CreateLabel(canvasGo.transform, "Subtitle", "LOCKED MONITORING · NO AUTO IMAGE PROCESSING",
-                new Vector2(0, 465), new Vector2(860, 28), 12, TextAnchor.MiddleCenter,
-                new Color(0.55f, 0.6f, 0.65f));
+            RuntimeUiFactory.CreateLabel(canvasGo.transform, "Subtitle", "REFERENCE BYPASS · NO AUTO IMAGE PROCESSING",
+                new Vector2(0, 465), new Vector2(860, 28), 14, TextAnchor.MiddleCenter,
+                new Color(0.65f, 0.78f, 0.82f));
 
-            // Top action buttons
-            RuntimeUiFactory.CreateButton(canvasGo.transform, "BtnLock", "LOCK", new Vector2(-280, 410),
-                new Vector2(160, 42), () => imgCtrl.SetLocked(!imgCtrl.IsLocked));
-            RuntimeUiFactory.CreateButton(canvasGo.transform, "BtnBypass", "BYPASS", new Vector2(-100, 410),
-                new Vector2(160, 42), () => imgCtrl.SetBypass(!imgCtrl.IsBypass));
-            RuntimeUiFactory.CreateButton(canvasGo.transform, "BtnTheater", "THEATER", new Vector2(80, 410),
-                new Vector2(160, 42), () => theater.Toggle());
+            // Hero row only — looks/presets live lower so the DP cannot miss the trust path
+            RuntimeUiFactory.CreateButton(canvasGo.transform, "BtnBypass", "BYPASS", new Vector2(-280, 410),
+                new Vector2(160, 48), () => imgCtrl.SetBypass(!imgCtrl.IsBypass));
+            RuntimeUiFactory.CreateButton(canvasGo.transform, "BtnLock", "LOCK", new Vector2(-100, 410),
+                new Vector2(160, 48), () => imgCtrl.SetLocked(!imgCtrl.IsLocked));
+            RuntimeUiFactory.CreateButton(canvasGo.transform, "BtnWave", "WAVEFORM", new Vector2(80, 410),
+                new Vector2(160, 48), () => wfGo.SetActive(!wfGo.activeSelf));
             RuntimeUiFactory.CreateButton(canvasGo.transform, "BtnFreeze", "FREEZE", new Vector2(260, 410),
-                new Vector2(160, 42), () => freeze.Toggle());
+                new Vector2(160, 48), () => freeze.Toggle());
 
-            // Scope toggles
-            RuntimeUiFactory.CreateButton(canvasGo.transform, "BtnWave", "WAVEFORM", new Vector2(-280, 355),
-                new Vector2(160, 38), () => wfGo.SetActive(!wfGo.activeSelf));
+            RuntimeUiFactory.CreateButton(canvasGo.transform, "BtnTheater", "THEATER", new Vector2(-280, 355),
+                new Vector2(160, 38), () => theater.Toggle());
             RuntimeUiFactory.CreateButton(canvasGo.transform, "BtnParade", "PARADE", new Vector2(-100, 355),
                 new Vector2(160, 38), () => paradeGo.SetActive(!paradeGo.activeSelf));
             RuntimeUiFactory.CreateButton(canvasGo.transform, "BtnVec", "VECTOR", new Vector2(80, 355),
@@ -247,9 +246,9 @@ namespace CineQuest.App
                 new Vector2(0, sy), -0.5f, 0.5f, 0f, null);
 
             // Presets
-            RuntimeUiFactory.CreateLabel(canvasGo.transform, "PresetHeader", "PRESETS",
+            RuntimeUiFactory.CreateLabel(canvasGo.transform, "PresetHeader", "LOOKS (not for iris proof — use BYPASS)",
                 new Vector2(0, -100), new Vector2(820, 28), 13, TextAnchor.MiddleCenter,
-                new Color(0.6f, 0.65f, 0.7f));
+                new Color(0.55f, 0.45f, 0.4f));
 
             var menu = canvasGo.GetComponent<MonitorMenuController>() ?? canvasGo.AddComponent<MonitorMenuController>();
 
@@ -276,7 +275,7 @@ namespace CineQuest.App
 
             // Status HUD
             var hudGo = EnsureChild(uiRoot, "StatusHUD");
-            hudGo.transform.position = cam.transform.position + cam.transform.forward * 0.95f + Vector3.up * -0.22f;
+            hudGo.transform.position = cam.transform.position + cam.transform.forward * 0.72f + Vector3.up * -0.38f;
             var hudCanvas = hudGo.GetComponent<Canvas>() ?? hudGo.AddComponent<Canvas>();
             hudCanvas.renderMode = RenderMode.WorldSpace;
             hudGo.GetComponent<CanvasScaler>() ?? hudGo.AddComponent<CanvasScaler>();
@@ -404,6 +403,26 @@ namespace CineQuest.App
 
             var overlay = go.GetComponent<VideoStatusOverlay>() ?? go.AddComponent<VideoStatusOverlay>();
             overlay.Bind(capture, msg, bg, group);
+
+            var tallyGo = EnsureChild(go, "Tally");
+            var tallyBg = tallyGo.GetComponent<Image>() ?? tallyGo.AddComponent<Image>();
+            var tallyRt = tallyGo.GetComponent<RectTransform>();
+            tallyRt.anchorMin = new Vector2(0f, 1f);
+            tallyRt.anchorMax = new Vector2(1f, 1f);
+            tallyRt.pivot = new Vector2(0.5f, 1f);
+            tallyRt.anchoredPosition = Vector2.zero;
+            tallyRt.sizeDelta = new Vector2(0f, 72f);
+            var tallyLabel = RuntimeUiFactory.CreateLabel(tallyGo.transform, "TallyText", "BYPASS  ·  —",
+                Vector2.zero, new Vector2(1500, 64), 28, TextAnchor.MiddleLeft, Color.white);
+            var trt = tallyLabel.rectTransform;
+            trt.anchorMin = Vector2.zero;
+            trt.anchorMax = Vector2.one;
+            trt.offsetMin = new Vector2(24, 0);
+            trt.offsetMax = new Vector2(-24, 0);
+            var tally = go.GetComponent<MonitorTallyStrip>() ?? go.AddComponent<MonitorTallyStrip>();
+            tally.Bind(capture, FindFirstObjectByType<ImageParameterController>(),
+                FindFirstObjectByType<FreezeFrameController>(), tallyLabel, tallyBg);
+
             return overlay;
         }
 
@@ -425,6 +444,18 @@ namespace CineQuest.App
             go.GetComponent<SimpleGrabTransform>() ?? go.AddComponent<SimpleGrabTransform>();
             var box = go.GetComponent<BoxCollider>() ?? go.AddComponent<BoxCollider>();
             box.size = new Vector3(1f, 1f, 0.02f);
+            if (type == ScopeType.Waveform)
+            {
+                var stamp = new GameObject("RelativeStamp");
+                stamp.transform.SetParent(go.transform, false);
+                stamp.transform.localPosition = new Vector3(0f, -0.55f, -0.01f);
+                stamp.transform.localScale = Vector3.one * 0.002f;
+                var c = stamp.AddComponent<Canvas>();
+                c.renderMode = RenderMode.WorldSpace;
+                var t = RuntimeUiFactory.CreateLabel(stamp.transform, "Stamp", "LUMA %  ·  RELATIVE  ·  NOT CALIBRATED IRE",
+                    Vector2.zero, new Vector2(900, 40), 22, TextAnchor.MiddleCenter, new Color(0.75f, 0.8f, 0.55f));
+                t.rectTransform.sizeDelta = new Vector2(900, 40);
+            }
             return go;
         }
 

@@ -1,5 +1,5 @@
 // Cine Quest — Copy live UVC (possibly External OES) into one ARGB32 RT.
-// Freeze, scopes, and false color all Blit this 2D texture.
+// Tries OES blit on Android, then falls back to 2D if the copy is empty.
 
 using UnityEngine;
 
@@ -9,6 +9,7 @@ namespace CineQuest.Capture
     {
         RenderTexture _rgb;
         Material _blitMat;
+        bool _oesFailed;
 
         public Texture RgbFrame => _rgb;
 
@@ -40,7 +41,7 @@ namespace CineQuest.Capture
             }
 
 #if UNITY_ANDROID && !UNITY_EDITOR
-            if (_blitMat != null)
+            if (_blitMat != null && !_oesFailed)
             {
                 _blitMat.EnableKeyword("CQ_EXTERNAL_OES");
                 Graphics.Blit(source, _rgb, _blitMat);
@@ -56,6 +57,14 @@ namespace CineQuest.Capture
             {
                 Graphics.Blit(source, _rgb);
             }
+        }
+
+        /// <summary>Call if the monitor stays black on device after an OES blit attempt.</summary>
+        public void MarkOesFailed()
+        {
+            _oesFailed = true;
+            if (_blitMat != null)
+                _blitMat.DisableKeyword("CQ_EXTERNAL_OES");
         }
 
         public void Dispose()
